@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import { marked } from 'marked'
 import { api } from '../api'
 import type { Todo } from '../types'
 import { WSClient } from '../ws'
@@ -7,6 +8,15 @@ import { Icon } from '../components/Icon'
 export default function Admin() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(false)
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null)
+  const [skipNextWsUpdate, setSkipNextWsUpdate] = useState(false)
+  const [editForm, setEditForm] = useState({
+    title: '',
+    note: '',
+    priority: 1,
+    due_date: '',
+    due_time: '',
+  })
 
   // Generate default due date (today's date)
   const getDefaultDueDate = () => {
@@ -104,14 +114,24 @@ export default function Admin() {
     }
   }
 
+  const handleWsUpdate = useCallback(() => {
+    if (skipNextWsUpdate) {
+      console.log('Skipping WebSocket update')
+      setSkipNextWsUpdate(false)
+      return
+    }
+    console.log('Processing WebSocket update')
+    load()
+  }, [skipNextWsUpdate, statusFilter])
+
   useEffect(() => {
     load()
   }, [statusFilter])
 
   useEffect(() => {
-    const ws = new WSClient(() => load())
+    const ws = new WSClient(handleWsUpdate)
     return () => ws.stop()
-  }, [statusFilter]) // Add statusFilter dependency to recreate WebSocket when filter changes
+  }, [handleWsUpdate]) // Use handleWsUpdate as dependency
 
   async function createTodo(e: React.FormEvent) {
     e.preventDefault()
@@ -150,6 +170,95 @@ export default function Admin() {
     } catch (error) {
       console.error('Failed to create todo:', error)
       // You might want to show an error message to the user here
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function startEdit(todo: Todo) {
+    setEditingTodo(todo)
+    const dueDate = todo.due_at ? new Date(todo.due_at) : new Date()
+    const dueDateStr = dueDate.toISOString().split('T')[0]
+    const dueTimeStr = dueDate.toTimeString().slice(0, 5)
+
+    setEditForm({
+      title: todo.title,
+      note: todo.note || '',
+      priority: todo.priority,
+      due_date: dueDateStr,
+      due_time: dueTimeStr,
+    })
+  }
+
+  function cancelEdit() {
+    setEditingTodo(null)
+    setEditForm({
+      title: '',
+      note: '',
+      priority: 1,
+      due_date: '',
+      due_time: '',
+    })
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    console.log('========== saveEdit function called ==========')
+    e.preventDefault()
+    console.log('preventDefault called')
+
+    if (!editingTodo) {
+      console.log('ERROR: No editing todo found')
+      return
+    }
+
+    if (!editForm.title.trim()) {
+      console.log('ERROR: Title is empty')
+      return
+    }
+
+    console.log('Starting save process with data:', {
+      id: editingTodo.id,
+      title: editForm.title,
+      note: editForm.note,
+      priority: editForm.priority,
+      due_date: editForm.due_date,
+      due_time: editForm.due_time,
+    })
+
+    setLoading(true)
+    try {
+      // Combine date and time with proper timezone format
+      const dueDateTime = `${editForm.due_date}T${editForm.due_time}:00Z`
+
+      console.log('Calling API with:', {
+        id: editingTodo.id,
+        title: editForm.title,
+        note: editForm.note.trim() || null,
+        priority: editForm.priority,
+        due_at: dueDateTime,
+      })
+
+      const result = await api.updateTodo(editingTodo.id, {
+        title: editForm.title,
+        note: editForm.note.trim() || null,
+        priority: editForm.priority as 0 | 1 | 2 | 3,
+        due_at: dueDateTime,
+      })
+
+      console.log('API Update result:', result)
+
+      // Skip next WebSocket update to prevent overriding our changes
+      setSkipNextWsUpdate(true)
+
+      cancelEdit()
+
+      // Delay the reload to allow WebSocket update to propagate
+      setTimeout(() => {
+        console.log('Reloading after save...')
+        load()
+      }, 300)
+    } catch (error) {
+      console.error('Failed to update todo:', error)
     } finally {
       setLoading(false)
     }
@@ -328,7 +437,7 @@ export default function Admin() {
       ) : (
         <div className="grid">
           {grouped.active.map(t => (
-            <TodoCard key={t.id} t={t} refresh={load} />
+            <TodoCard key={t.id} t={t} refresh={load} onEdit={startEdit} />
           ))}
         </div>
       )}
@@ -345,7 +454,7 @@ export default function Admin() {
           </div>
           <div className="grid">
             {grouped.archived.map(t => (
-              <TodoCard key={t.id} t={t} refresh={load} />
+              <TodoCard key={t.id} t={t} refresh={load} onEdit={startEdit} />
             ))}
           </div>
         </>
@@ -367,6 +476,107 @@ export default function Admin() {
             ))}
           </div>
         </>
+      )}
+
+      {/* Edit Todo Modal */}
+      {editingTodo && (
+        <div className="modal-overlay" onClick={cancelEdit}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="flex items-center gap-2 font-semibold">
+                <Icon name="edit" size={20} />
+                Edit Task
+              </h3>
+              <button className="btn btn-sm btn-secondary" onClick={cancelEdit}>
+                <Icon name="x" size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={saveEdit}>
+              <div className="form-row mb-4">
+                <input
+                  className="input"
+                  placeholder="Task title (required)"
+                  value={editForm.title}
+                  onChange={e =>
+                    setEditForm({ ...editForm, title: e.target.value })
+                  }
+                  required
+                />
+              </div>
+
+              <div className="form-row mb-4">
+                <textarea
+                  className="textarea"
+                  placeholder="Notes (supports Markdown: **bold**, *italic*, `code`, etc.)"
+                  value={editForm.note}
+                  onChange={e =>
+                    setEditForm({ ...editForm, note: e.target.value })
+                  }
+                  rows={6}
+                />
+                <div className="text-sm text-muted mt-1">
+                  Markdown preview will be shown in the task card
+                </div>
+              </div>
+
+              <div className="form-row">
+                <select
+                  className="select"
+                  value={editForm.priority}
+                  onChange={e =>
+                    setEditForm({
+                      ...editForm,
+                      priority: parseInt(e.target.value),
+                    })
+                  }
+                >
+                  <option value={0}>Low Priority</option>
+                  <option value={1}>Normal Priority</option>
+                  <option value={2}>Important</option>
+                  <option value={3}>Urgent</option>
+                </select>
+
+                <input
+                  type="date"
+                  className="input"
+                  value={editForm.due_date}
+                  onChange={e =>
+                    setEditForm({ ...editForm, due_date: e.target.value })
+                  }
+                  required
+                />
+
+                <input
+                  type="time"
+                  className="input"
+                  value={editForm.due_time}
+                  onChange={e =>
+                    setEditForm({ ...editForm, due_time: e.target.value })
+                  }
+                  required
+                />
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={cancelEdit}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={loading || !editForm.title.trim()}
+                >
+                  {loading ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -435,10 +645,12 @@ function TodoCard({
   t,
   refresh,
   deleted,
+  onEdit,
 }: {
   t: Todo
   refresh: () => void
   deleted?: boolean
+  onEdit?: (todo: Todo) => void
 }) {
   const statusInfo = getStatusInfo(t.status)
   const priorityInfo = getPriorityInfo(t.priority)
@@ -488,7 +700,12 @@ function TodoCard({
 
       {t.note && (
         <div className="card-content">
-          <p>{t.note}</p>
+          <div
+            className="markdown-content"
+            dangerouslySetInnerHTML={{
+              __html: marked.parse(t.note, { breaks: true, gfm: true }),
+            }}
+          />
         </div>
       )}
 
@@ -540,6 +757,13 @@ function TodoCard({
                 Archive
               </button>
             )}
+            <button
+              className="btn btn-sm btn-secondary"
+              onClick={() => onEdit?.(t)}
+            >
+              <Icon name="edit" size={14} />
+              Edit
+            </button>
             <button className="btn btn-sm btn-danger" onClick={remove}>
               <Icon name="trash-2" size={14} />
               Delete
