@@ -60,6 +60,17 @@ export default function App() {
                 <span>Admin Panel</span>
               </Link>
 
+              {/* My Day link - active when on my-day route */}
+              <Link
+                to="/my-day"
+                className={`nav-link ${
+                  pathname.startsWith('/my-day') ? 'active' : ''
+                }`}
+              >
+                <Icon name="sun" size={16} />
+                <span>My Day</span>
+              </Link>
+
               {/* Display/Dashboard link - active when on display route */}
               <Link
                 to="/display"
