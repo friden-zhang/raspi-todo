@@ -26,10 +26,13 @@ pub fn api_router() -> Router<AppState> {
         .route("/api/health", get(health))
         .route("/api/todos", get(list_todos).post(create_todo))
         .route(
-            "/api/todos/:id",
+            "/api/todos/{id}",
             get(get_todo).put(update_todo).delete(delete_todo),
         )
-        .route("/api/todos/:id/status", axum::routing::patch(update_status))
+        .route(
+            "/api/todos/{id}/status",
+            axum::routing::patch(update_status),
+        )
         .route("/api/todos/reorder", post(reorder))
 }
 

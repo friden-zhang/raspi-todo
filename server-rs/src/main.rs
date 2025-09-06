@@ -87,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(8000);
-    let db_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://./data/todo.db".into());
+    let db_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://./data/todos.db".into());
     let static_dir = env::var("STATIC_DIR").unwrap_or_else(|_| "../server/static".into());
 
     // Ensure data directory exists (similar to mkdir -p)
@@ -124,7 +124,7 @@ async fn main() -> anyhow::Result<()> {
         let index = static_path.join("index.html");
         // Serve static files, fallback to index.html for SPA routing
         let svc = ServeDir::new(static_path).not_found_service(ServeFile::new(index));
-        app = app.nest_service("/", svc);
+        app = app.fallback_service(svc);
     }
 
     // Bind to network address and start the server

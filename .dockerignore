@@ -2,7 +2,6 @@
 
 # Rust build artifacts
 server-rs/target/
-server-rs/Cargo.lock
 
 # Node.js dependencies and build artifacts
 web/node_modules/

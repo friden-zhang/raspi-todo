@@ -1,6 +1,6 @@
 # Multi-stage build for optimized production image
 # Stage 1: Build Rust backend
-FROM rust:1.75-slim as rust-builder
+FROM rustlang/rust:nightly-slim as rust-builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -26,7 +26,7 @@ WORKDIR /app
 # Copy package files and install dependencies
 COPY web/package.json web/package-lock.json ./web/
 WORKDIR /app/web
-RUN npm ci --only=production
+RUN npm ci
 
 # Copy source files and build
 COPY web/src ./src/
@@ -45,6 +45,7 @@ RUN apt-get update && apt-get install -y \
 
 # Create application user for security
 RUN useradd --create-home --shell /bin/bash app
+
 USER app
 WORKDIR /home/app
 
@@ -52,8 +53,11 @@ WORKDIR /home/app
 COPY --from=rust-builder /app/server-rs/target/release/server-rs ./server
 COPY --from=web-builder /app/web/dist ./static
 
-# Create data directory for SQLite database
-RUN mkdir -p data
+# Create data directory for SQLite database and initialize the database file
+RUN mkdir -p data && \
+    touch data/todos.db && \
+    chown -R app:app data && \
+    chmod 666 data/todos.db
 
 # Expose the application port
 EXPOSE 8000

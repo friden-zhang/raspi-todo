@@ -1,11 +1,13 @@
-version: "3.8"
-
 services:
   # Main application service
   todo-app:
     build:
       context: .
       dockerfile: Dockerfile
+      network: host
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     ports:
       - "8000:8000" # HTTP API and static files
     volumes:
@@ -15,7 +17,7 @@ services:
       # - ./server-rs/src:/home/app/src:ro
     environment:
       - RUST_LOG=info
-      - DATABASE_URL=sqlite:./data/todos.db
+      - DATABASE_URL=sqlite:/home/app/data/todos.db
       - STATIC_DIR=./static
       - PORT=8000
     restart: unless-stopped

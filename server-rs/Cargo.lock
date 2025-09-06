@@ -1438,6 +1438,7 @@ dependencies = [
  "axum",
  "chrono",
  "futures",
+ "libsqlite3-sys",
  "serde",
  "serde_json",
  "sqlx",
