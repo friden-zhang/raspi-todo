@@ -1,0 +1,38 @@
+[Unit]
+Description=Todo Application Service
+Documentation=https://github.com/friden-zhang/raspi-todo
+After=network.target
+Wants=network.target
+
+[Service]
+Type=exec
+User=app
+Group=app
+WorkingDirectory=/opt/todo-app
+ExecStart=/opt/todo-app/server
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Environment variables
+Environment=RUST_LOG=info
+Environment=DATABASE_URL=sqlite:/opt/todo-app/data/todos.db
+Environment=STATIC_DIR=/opt/todo-app/static
+Environment=PORT=8000
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/todo-app/data
+
+# Restart policy
+Restart=always
+RestartSec=5
+StartLimitBurst=3
+StartLimitInterval=60
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

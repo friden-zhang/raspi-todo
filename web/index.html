@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RasPi TODO</title>
+    <style>
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+        margin: 0;
+      }
+      .container {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 16px;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .input,
+      select {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+      }
+      .btn {
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        background: #fafafa;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .btn.primary {
+        background: #0ea5e9;
+        color: white;
+        border-color: #0ea5e9;
+      }
+      .btn.danger {
+        background: #ef4444;
+        color: white;
+        border-color: #ef4444;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .card {
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 12px;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 12px;
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-size: 12px;
+        border: 1px solid #e5e7eb;
+      }
+      .pill.todo {
+        background: #fef3c7;
+      }
+      .pill.doing {
+        background: #dbeafe;
+      }
+      .pill.done {
+        background: #dcfce7;
+      }
+      .pill.archived {
+        background: #e5e7eb;
+      }
+      .prio-0 {
+        border-left: 6px solid #9ca3af;
+      }
+      .prio-1 {
+        border-left: 6px solid #60a5fa;
+      }
+      .prio-2 {
+        border-left: 6px solid #f59e0b;
+      }
+      .prio-3 {
+        border-left: 6px solid #ef4444;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      header {
+        border-bottom: 1px solid #eee;
+        padding: 12px 0;
+        margin-bottom: 12px;
+      }
+      a {
+        color: #0ea5e9;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

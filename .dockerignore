@@ -1,0 +1,48 @@
+# Docker ignore file for Todo App
+
+# Rust build artifacts
+server-rs/target/
+server-rs/Cargo.lock
+
+# Node.js dependencies and build artifacts
+web/node_modules/
+web/dist/
+web/.env.local
+web/.env.*.local
+
+# Database files
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+logs/
+*.log
+
+# Development files
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+docs/
+
+# Deployment files (not needed in container)
+deploy/
+.github/

@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  # Application with monitoring
+  todo-app:
+    image: todo-app:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - todo_data:/home/app/data
+      - ./logs:/home/app/logs
+    environment:
+      - RUST_LOG=info
+      - DATABASE_URL=sqlite:./data/todos.db
+      - STATIC_DIR=./static
+      - PORT=8000
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Log aggregation
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - ./logs:/var/log/todo-app:ro
+      - ./deploy/promtail-config.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+
+  # Metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  # Monitoring dashboard
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  todo_data:
+  grafana_data:
