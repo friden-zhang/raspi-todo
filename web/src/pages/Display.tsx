@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { api } from '../api'
 import type { Todo } from '../types'
 import { WSClient } from '../ws'
+import { Icon } from '../components/Icon'
 
 export default function Display() {
   const [todos, setTodos] = useState<Todo[]>([])
@@ -21,15 +22,6 @@ export default function Display() {
     const ws = new WSClient(() => load())
     return () => ws.stop()
   }, [])
-
-  // Initialize icons when component updates
-  useEffect(() => {
-    // @ts-ignore
-    if (window.lucide) {
-      // @ts-ignore
-      window.lucide.createIcons()
-    }
-  })
 
   // Group todos by status
   const todosByStatus = useMemo(() => {
@@ -136,7 +128,7 @@ export default function Display() {
       {/* Page Header */}
       <div className="page-header">
         <h1 className="page-title">
-          <i data-lucide="monitor" style={{ width: 28, height: 28 }}></i>
+          <Icon name="monitor" size={28} />
           Board View
         </h1>
         <div className="flex items-center gap-4 text-sm text-muted">
@@ -173,10 +165,7 @@ export default function Display() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <i
-                      data-lucide={config.icon}
-                      style={{ width: 18, height: 18 }}
-                    ></i>
+                    <Icon name={config.icon} size={18} />
                     <h2 className="font-semibold">{config.title}</h2>
                   </div>
                   <span className="bg-white px-2 py-1 rounded-full text-sm font-medium">
@@ -189,10 +178,11 @@ export default function Display() {
               <div className="flex flex-col gap-4">
                 {statusTodos.length === 0 ? (
                   <div className="p-6 text-center text-muted border-2 border-dashed border-gray-200 rounded-lg">
-                    <i
-                      data-lucide="inbox"
-                      style={{ width: 32, height: 32, margin: '0 auto 8px' }}
-                    ></i>
+                    <Icon
+                      name="inbox"
+                      size={32}
+                      style={{ margin: '0 auto 8px', display: 'block' }}
+                    />
                     <p className="text-sm">No {config.title.toLowerCase()}</p>
                   </div>
                 ) : (
@@ -210,10 +200,10 @@ export default function Display() {
                           <div
                             className={`priority-badge priority-${todo.priority}`}
                           >
-                            <i
-                              data-lucide={getPriorityIcon(todo.priority)}
-                              style={{ width: 12, height: 12 }}
-                            ></i>
+                            <Icon
+                              name={getPriorityIcon(todo.priority)}
+                              size={12}
+                            />
                           </div>
                         </div>
 
@@ -229,14 +219,14 @@ export default function Display() {
                               dueInfo.isOverdue ? 'text-red-600' : 'text-muted'
                             }`}
                           >
-                            <i
-                              data-lucide={
+                            <Icon
+                              name={
                                 dueInfo.isOverdue
                                   ? 'alert-triangle'
                                   : 'calendar'
                               }
-                              style={{ width: 12, height: 12 }}
-                            ></i>
+                              size={12}
+                            />
                             <span>{dueInfo.text}</span>
                           </div>
                         )}
@@ -252,7 +242,7 @@ export default function Display() {
 
       {todos.length === 0 && (
         <div className="empty-state">
-          <i data-lucide="clipboard-list" className="empty-state-icon"></i>
+          <Icon name="clipboard-list" className="empty-state-icon" size={48} />
           <h3 className="empty-state-title">No tasks yet</h3>
           <p className="empty-state-description">
             Go to the admin panel to create your first task

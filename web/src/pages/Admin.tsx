@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { api } from '../api'
 import type { Todo } from '../types'
 import { WSClient } from '../ws'
+import { Icon } from '../components/Icon'
 
 export default function Admin() {
   const [todos, setTodos] = useState<Todo[]>([])
@@ -112,40 +113,46 @@ export default function Admin() {
     return () => ws.stop()
   }, [])
 
-  // Initialize icons when component updates
-  useEffect(() => {
-    // @ts-ignore
-    if (window.lucide) {
-      // @ts-ignore
-      window.lucide.createIcons()
-    }
-  })
-
   async function createTodo(e: React.FormEvent) {
     e.preventDefault()
     if (!form.title.trim()) return
 
-    // Combine date and time
-    const dueDateTime =
-      form.due_date && form.due_time
-        ? new Date(`${form.due_date}T${form.due_time}`).toISOString()
-        : null
+    try {
+      setLoading(true)
 
-    await api.createTodo({
-      title: form.title.trim(),
-      note: form.note || undefined,
-      priority: (Number(form.priority) || 1) as 0 | 1 | 2 | 3,
-      due_at: dueDateTime,
-    })
+      // Combine date and time
+      const dueDateTime =
+        form.due_date && form.due_time
+          ? new Date(`${form.due_date}T${form.due_time}`).toISOString()
+          : null
 
-    setForm({
-      title: '',
-      note: '',
-      priority: 1,
-      due_date: getDefaultDueDate(),
-      due_time: '18:00',
-    })
-    await load()
+      await api.createTodo({
+        title: form.title.trim(),
+        note: form.note || undefined,
+        priority: (Number(form.priority) || 1) as 0 | 1 | 2 | 3,
+        due_at: dueDateTime,
+      })
+
+      // Reset form first
+      setForm({
+        title: '',
+        note: '',
+        priority: 1,
+        due_date: getDefaultDueDate(),
+        due_time: '18:00',
+      })
+
+      // Let WebSocket handle the update instead of immediate reload
+      // This prevents DOM conflicts during state transitions
+      setTimeout(() => {
+        load()
+      }, 100)
+    } catch (error) {
+      console.error('Failed to create todo:', error)
+      // You might want to show an error message to the user here
+    } finally {
+      setLoading(false)
+    }
   }
 
   const grouped = useMemo(
@@ -166,7 +173,7 @@ export default function Admin() {
       {/* Page Header */}
       <div className="page-header">
         <h1 className="page-title">
-          <i data-lucide="settings" style={{ width: 28, height: 28 }}></i>
+          <Icon name="settings" size={28} />
           Admin Panel
         </h1>
         <div className="flex items-center gap-3 text-sm text-muted">
@@ -187,7 +194,7 @@ export default function Admin() {
       {/* Create Todo Form */}
       <div className="card mb-6">
         <h3 className="flex items-center gap-2 mb-4 font-semibold">
-          <i data-lucide="plus-circle" style={{ width: 20, height: 20 }}></i>
+          <Icon name="plus-circle" size={20} />
           Create New Task
         </h3>
         <form onSubmit={createTodo}>
@@ -268,9 +275,13 @@ export default function Admin() {
 
             <div className="form-group">
               <label className="text-sm font-medium text-muted">&nbsp;</label>
-              <button className="btn btn-primary" type="submit">
-                <i data-lucide="plus" style={{ width: 16, height: 16 }}></i>
-                Create Task
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={loading || !form.title.trim()}
+              >
+                <Icon name="plus" size={16} />
+                {loading ? 'Creating...' : 'Create Task'}
               </button>
             </div>
           </div>
@@ -300,7 +311,7 @@ export default function Admin() {
       {/* Active Todos Section */}
       <div className="section-header">
         <h2 className="section-title">
-          <i data-lucide="list-todo" style={{ width: 20, height: 20 }}></i>
+          <Icon name="list-todo" size={20} />
           Active Tasks
         </h2>
         <span className="section-count">{grouped.active.length}</span>
@@ -308,7 +319,7 @@ export default function Admin() {
 
       {grouped.active.length === 0 ? (
         <div className="empty-state">
-          <i data-lucide="inbox" className="empty-state-icon"></i>
+          <Icon name="inbox" className="empty-state-icon" size={48} />
           <h3 className="empty-state-title">No Active Tasks</h3>
           <p className="empty-state-description">
             Create your first task to start managing your todos
@@ -327,7 +338,7 @@ export default function Admin() {
         <>
           <div className="section-header">
             <h2 className="section-title">
-              <i data-lucide="archive" style={{ width: 20, height: 20 }}></i>
+              <Icon name="archive" size={20} />
               Archived Tasks
             </h2>
             <span className="section-count">{grouped.archived.length}</span>
@@ -345,7 +356,7 @@ export default function Admin() {
         <>
           <div className="section-header">
             <h2 className="section-title">
-              <i data-lucide="trash-2" style={{ width: 20, height: 20 }}></i>
+              <Icon name="trash-2" size={20} />
               Deleted Tasks
             </h2>
             <span className="section-count">{grouped.deleted.length}</span>
@@ -463,17 +474,11 @@ function TodoCard({
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
             <span className={`status-pill ${t.status}`}>
-              <i
-                data-lucide={statusInfo.icon}
-                style={{ width: 12, height: 12 }}
-              ></i>
+              <Icon name={statusInfo.icon} size={12} />
               {statusInfo.text}
             </span>
             <span className={`priority-badge priority-${t.priority}`}>
-              <i
-                data-lucide={priorityInfo.icon}
-                style={{ width: 12, height: 12 }}
-              ></i>
+              <Icon name={priorityInfo.icon} size={12} />
               {priorityInfo.text}
             </span>
           </div>
@@ -492,10 +497,7 @@ function TodoCard({
           isOverdue ? 'text-red-600' : 'text-muted'
         }`}
       >
-        <i
-          data-lucide={isOverdue ? 'alert-triangle' : 'calendar'}
-          style={{ width: 14, height: 14 }}
-        ></i>
+        <Icon name={isOverdue ? 'alert-triangle' : 'calendar'} size={14} />
         <span>{fmtDue(t.due_at)}</span>
       </div>
 
@@ -507,10 +509,7 @@ function TodoCard({
                 className="btn btn-sm btn-secondary"
                 onClick={() => setStatus('todo')}
               >
-                <i
-                  data-lucide="rotate-ccw"
-                  style={{ width: 14, height: 14 }}
-                ></i>
+                <Icon name="rotate-ccw" size={14} />
                 Todo
               </button>
             )}
@@ -519,7 +518,7 @@ function TodoCard({
                 className="btn btn-sm btn-primary"
                 onClick={() => setStatus('doing')}
               >
-                <i data-lucide="play" style={{ width: 14, height: 14 }}></i>
+                <Icon name="play" size={14} />
                 Start
               </button>
             )}
@@ -528,7 +527,7 @@ function TodoCard({
                 className="btn btn-sm btn-success"
                 onClick={() => setStatus('done')}
               >
-                <i data-lucide="check" style={{ width: 14, height: 14 }}></i>
+                <Icon name="check" size={14} />
                 Done
               </button>
             )}
@@ -537,19 +536,19 @@ function TodoCard({
                 className="btn btn-sm btn-secondary"
                 onClick={() => setStatus('archived')}
               >
-                <i data-lucide="archive" style={{ width: 14, height: 14 }}></i>
+                <Icon name="archive" size={14} />
                 Archive
               </button>
             )}
             <button className="btn btn-sm btn-danger" onClick={remove}>
-              <i data-lucide="trash-2" style={{ width: 14, height: 14 }}></i>
+              <Icon name="trash-2" size={14} />
               Delete
             </button>
           </>
         )}
         {deleted && (
           <div className="text-sm text-muted flex items-center gap-2">
-            <i data-lucide="trash" style={{ width: 14, height: 14 }}></i>
+            <Icon name="trash" size={14} />
             Deleted task
           </div>
         )}

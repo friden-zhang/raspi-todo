@@ -13,8 +13,9 @@
  * Think of this as the main window/frame in a C++ GUI application
  */
 
-import React, { useEffect } from 'react'
+import React from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Icon } from './components/Icon'
 
 /**
  * App Component - Root of the application
@@ -30,15 +31,6 @@ export default function App() {
   // Similar to checking current state in a state machine
   const { pathname } = useLocation()
 
-  // Initialize Lucide icons when component mounts
-  useEffect(() => {
-    // @ts-ignore - Lucide is loaded via CDN
-    if (window.lucide) {
-      // @ts-ignore
-      window.lucide.createIcons()
-    }
-  })
-
   return (
     <div>
       {/* Header with navigation */}
@@ -48,10 +40,7 @@ export default function App() {
             {/* Application title/brand */}
             <div className="logo">
               <div className="logo-icon">
-                <i
-                  data-lucide="check-square"
-                  style={{ width: 20, height: 20 }}
-                ></i>
+                <Icon name="check-square" size={20} />
               </div>
               <span>RasPi TODO</span>
             </div>
@@ -67,7 +56,7 @@ export default function App() {
                     : ''
                 }`}
               >
-                <i data-lucide="settings" style={{ width: 16, height: 16 }}></i>
+                <Icon name="settings" size={16} />
                 <span>Admin Panel</span>
               </Link>
 
@@ -78,7 +67,7 @@ export default function App() {
                   pathname.startsWith('/display') ? 'active' : ''
                 }`}
               >
-                <i data-lucide="monitor" style={{ width: 16, height: 16 }}></i>
+                <Icon name="monitor" size={16} />
                 <span>Board View</span>
               </Link>
             </nav>
