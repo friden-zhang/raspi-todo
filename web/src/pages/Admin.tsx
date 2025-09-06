@@ -6,13 +6,92 @@ import { WSClient } from '../ws'
 export default function Admin() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(false)
+
+  // Generate default due date (today's date)
+  const getDefaultDueDate = () => {
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = (today.getMonth() + 1).toString().padStart(2, '0')
+    const day = today.getDate().toString().padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
   const [form, setForm] = useState({
     title: '',
     note: '',
     priority: 1,
-    due_at: '',
+    due_date: getDefaultDueDate(), // Default to today
+    due_time: '18:00', // Default to 6 PM
   })
   const [statusFilter, setStatusFilter] = useState<string>('')
+
+  // Generate date options (next 30 days)
+  const generateDateOptions = () => {
+    const options = []
+    const today = new Date()
+
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(today)
+      date.setDate(today.getDate() + i)
+
+      const year = date.getFullYear()
+      const month = (date.getMonth() + 1).toString().padStart(2, '0')
+      const day = date.getDate().toString().padStart(2, '0')
+      const dateStr = `${year}-${month}-${day}`
+
+      let label = ''
+      if (i === 0) {
+        label = `Today (${month}/${day})`
+      } else if (i === 1) {
+        label = `Tomorrow (${month}/${day})`
+      } else if (i === 2) {
+        label = `Day after tomorrow (${month}/${day})`
+      } else {
+        const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+        const weekday = weekdays[date.getDay()]
+        label = `${weekday} (${month}/${day})`
+      }
+
+      options.push({ value: dateStr, label })
+    }
+
+    return options
+  }
+
+  // Generate time options
+  const generateTimeOptions = () => {
+    const options = []
+
+    // Add special quick options
+    options.push(
+      { value: '09:00', label: '09:00 (Work start)' },
+      { value: '12:00', label: '12:00 (Lunch)' },
+      { value: '14:00', label: '14:00 (Afternoon)' },
+      { value: '18:00', label: '18:00 (Work end)' },
+      { value: '20:00', label: '20:00 (Evening)' },
+      { value: '23:59', label: '23:59 (End of day)' }
+    )
+
+    // Add separator
+    options.push({ value: '---', label: '--- Custom Time ---' })
+
+    // Generate other time options
+    for (let hour = 6; hour <= 23; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const timeStr = `${hour.toString().padStart(2, '0')}:${minute
+          .toString()
+          .padStart(2, '0')}`
+
+        // Skip times already in quick options
+        const isQuickOption = options.some(opt => opt.value === timeStr)
+        if (!isQuickOption && timeStr !== '---') {
+          options.push({ value: timeStr, label: timeStr })
+        }
+      }
+    }
+
+    return options
+  }
 
   async function load() {
     setLoading(true)
@@ -45,13 +124,27 @@ export default function Admin() {
   async function createTodo(e: React.FormEvent) {
     e.preventDefault()
     if (!form.title.trim()) return
+
+    // Combine date and time
+    const dueDateTime =
+      form.due_date && form.due_time
+        ? new Date(`${form.due_date}T${form.due_time}`).toISOString()
+        : null
+
     await api.createTodo({
       title: form.title.trim(),
       note: form.note || undefined,
       priority: (Number(form.priority) || 1) as 0 | 1 | 2 | 3,
-      due_at: form.due_at ? new Date(form.due_at).toISOString() : undefined,
+      due_at: dueDateTime,
     })
-    setForm({ title: '', note: '', priority: 1, due_at: '' })
+
+    setForm({
+      title: '',
+      note: '',
+      priority: 1,
+      due_date: getDefaultDueDate(),
+      due_time: '18:00',
+    })
     await load()
   }
 
@@ -74,18 +167,18 @@ export default function Admin() {
       <div className="page-header">
         <h1 className="page-title">
           <i data-lucide="settings" style={{ width: 28, height: 28 }}></i>
-          管理面板
+          Admin Panel
         </h1>
         <div className="flex items-center gap-3 text-sm text-muted">
-          <span>总计: {todos.length}</span>
+          <span>Total: {todos.length}</span>
           <span>•</span>
-          <span>活跃: {grouped.active.length}</span>
+          <span>Active: {grouped.active.length}</span>
           <span>•</span>
-          <span>已归档: {grouped.archived.length}</span>
+          <span>Archived: {grouped.archived.length}</span>
           {grouped.deleted.length > 0 && (
             <>
               <span>•</span>
-              <span>已删除: {grouped.deleted.length}</span>
+              <span>Deleted: {grouped.deleted.length}</span>
             </>
           )}
         </div>
@@ -95,47 +188,91 @@ export default function Admin() {
       <div className="card mb-6">
         <h3 className="flex items-center gap-2 mb-4 font-semibold">
           <i data-lucide="plus-circle" style={{ width: 20, height: 20 }}></i>
-          创建新任务
+          Create New Task
         </h3>
         <form onSubmit={createTodo}>
           <div className="form-row mb-4">
             <input
               className="input"
-              placeholder="任务标题 (必填)"
+              placeholder="Task title (required)"
               value={form.title}
               onChange={e => setForm({ ...form, title: e.target.value })}
               required
             />
             <input
               className="input"
-              placeholder="备注 (可选)"
+              placeholder="Note (optional)"
               value={form.note}
               onChange={e => setForm({ ...form, note: e.target.value })}
             />
           </div>
           <div className="form-row">
-            <select
-              className="input"
-              value={form.priority}
-              onChange={e =>
-                setForm({ ...form, priority: Number(e.target.value) as any })
-              }
-            >
-              <option value={0}>优先级 0 (最低)</option>
-              <option value={1}>优先级 1 (普通)</option>
-              <option value={2}>优先级 2 (重要)</option>
-              <option value={3}>优先级 3 (紧急)</option>
-            </select>
-            <input
-              className="input"
-              type="datetime-local"
-              value={form.due_at}
-              onChange={e => setForm({ ...form, due_at: e.target.value })}
-            />
-            <button className="btn btn-primary" type="submit">
-              <i data-lucide="plus" style={{ width: 16, height: 16 }}></i>
-              创建任务
-            </button>
+            <div className="form-group">
+              <label className="text-sm font-medium text-muted">Priority</label>
+              <select
+                className="input"
+                value={form.priority}
+                onChange={e =>
+                  setForm({ ...form, priority: Number(e.target.value) as any })
+                }
+              >
+                <option value={0}>Priority 0 (Lowest)</option>
+                <option value={1}>Priority 1 (Normal)</option>
+                <option value={2}>Priority 2 (Important)</option>
+                <option value={3}>Priority 3 (Urgent)</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="text-sm font-medium text-muted">Due Date</label>
+              <select
+                className="input"
+                value={form.due_date}
+                onChange={e => setForm({ ...form, due_date: e.target.value })}
+              >
+                {generateDateOptions().map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="text-sm font-medium text-muted">Due Time</label>
+              <select
+                className="input"
+                value={form.due_time}
+                onChange={e => setForm({ ...form, due_time: e.target.value })}
+              >
+                {generateTimeOptions().map(option => (
+                  <option
+                    key={option.value}
+                    value={option.value}
+                    disabled={option.value === '---'}
+                    style={
+                      option.value === '---'
+                        ? {
+                            fontStyle: 'italic',
+                            color: '#999',
+                            backgroundColor: '#f5f5f5',
+                          }
+                        : {}
+                    }
+                  >
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="text-sm font-medium text-muted">&nbsp;</label>
+              <button className="btn btn-primary" type="submit">
+                <i data-lucide="plus" style={{ width: 16, height: 16 }}></i>
+                Create Task
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -143,20 +280,20 @@ export default function Admin() {
       {/* Filter Bar */}
       <div className="filter-bar">
         <div className="flex items-center gap-4">
-          <label className="font-medium">状态筛选:</label>
+          <label className="font-medium">Status Filter:</label>
           <select
             className="input"
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
             style={{ minWidth: 150 }}
           >
-            <option value="">全部状态</option>
-            <option value="todo">待办</option>
-            <option value="doing">进行中</option>
-            <option value="done">已完成</option>
-            <option value="archived">已归档</option>
+            <option value="">All Status</option>
+            <option value="todo">Todo</option>
+            <option value="doing">Doing</option>
+            <option value="done">Done</option>
+            <option value="archived">Archived</option>
           </select>
-          {loading && <div className="loading">正在加载...</div>}
+          {loading && <div className="loading">Loading...</div>}
         </div>
       </div>
 
@@ -164,7 +301,7 @@ export default function Admin() {
       <div className="section-header">
         <h2 className="section-title">
           <i data-lucide="list-todo" style={{ width: 20, height: 20 }}></i>
-          活跃任务
+          Active Tasks
         </h2>
         <span className="section-count">{grouped.active.length}</span>
       </div>
@@ -172,9 +309,9 @@ export default function Admin() {
       {grouped.active.length === 0 ? (
         <div className="empty-state">
           <i data-lucide="inbox" className="empty-state-icon"></i>
-          <h3 className="empty-state-title">暂无活跃任务</h3>
+          <h3 className="empty-state-title">No Active Tasks</h3>
           <p className="empty-state-description">
-            创建您的第一个任务来开始管理您的待办事项
+            Create your first task to start managing your todos
           </p>
         </div>
       ) : (
@@ -191,7 +328,7 @@ export default function Admin() {
           <div className="section-header">
             <h2 className="section-title">
               <i data-lucide="archive" style={{ width: 20, height: 20 }}></i>
-              已归档任务
+              Archived Tasks
             </h2>
             <span className="section-count">{grouped.archived.length}</span>
           </div>
@@ -209,7 +346,7 @@ export default function Admin() {
           <div className="section-header">
             <h2 className="section-title">
               <i data-lucide="trash-2" style={{ width: 20, height: 20 }}></i>
-              已删除任务
+              Deleted Tasks
             </h2>
             <span className="section-count">{grouped.deleted.length}</span>
           </div>
@@ -225,7 +362,7 @@ export default function Admin() {
 }
 
 function fmtDue(due?: string | null) {
-  if (!due) return '未设置截止时间'
+  if (!due) return 'No due date set'
   try {
     const date = new Date(due)
     const now = new Date()
@@ -233,15 +370,15 @@ function fmtDue(due?: string | null) {
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
 
     if (days < 0) {
-      return `已逾期 ${Math.abs(days)} 天`
+      return `Overdue by ${Math.abs(days)} day${Math.abs(days) > 1 ? 's' : ''}`
     } else if (days === 0) {
-      return '今天截止'
+      return 'Due today'
     } else if (days === 1) {
-      return '明天截止'
+      return 'Due tomorrow'
     } else if (days <= 7) {
-      return `${days} 天后截止`
+      return `Due in ${days} day${days > 1 ? 's' : ''}`
     } else {
-      return date.toLocaleDateString('zh-CN', {
+      return date.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -256,13 +393,13 @@ function fmtDue(due?: string | null) {
 function getStatusInfo(status: string) {
   switch (status) {
     case 'todo':
-      return { text: '待办', icon: 'circle' }
+      return { text: 'Todo', icon: 'circle' }
     case 'doing':
-      return { text: '进行中', icon: 'clock' }
+      return { text: 'Doing', icon: 'clock' }
     case 'done':
-      return { text: '已完成', icon: 'check-circle' }
+      return { text: 'Done', icon: 'check-circle' }
     case 'archived':
-      return { text: '已归档', icon: 'archive' }
+      return { text: 'Archived', icon: 'archive' }
     default:
       return { text: status, icon: 'help-circle' }
   }
@@ -271,15 +408,15 @@ function getStatusInfo(status: string) {
 function getPriorityInfo(priority: number) {
   switch (priority) {
     case 0:
-      return { text: '低', icon: 'arrow-down' }
+      return { text: 'Low', icon: 'arrow-down' }
     case 1:
-      return { text: '普通', icon: 'minus' }
+      return { text: 'Normal', icon: 'minus' }
     case 2:
-      return { text: '重要', icon: 'arrow-up' }
+      return { text: 'Important', icon: 'arrow-up' }
     case 3:
-      return { text: '紧急', icon: 'alert-circle' }
+      return { text: 'Urgent', icon: 'alert-circle' }
     default:
-      return { text: '普通', icon: 'minus' }
+      return { text: 'Normal', icon: 'minus' }
   }
 }
 
@@ -374,7 +511,7 @@ function TodoCard({
                   data-lucide="rotate-ccw"
                   style={{ width: 14, height: 14 }}
                 ></i>
-                待办
+                Todo
               </button>
             )}
             {t.status !== 'doing' && (
@@ -383,7 +520,7 @@ function TodoCard({
                 onClick={() => setStatus('doing')}
               >
                 <i data-lucide="play" style={{ width: 14, height: 14 }}></i>
-                开始
+                Start
               </button>
             )}
             {t.status !== 'done' && (
@@ -392,7 +529,7 @@ function TodoCard({
                 onClick={() => setStatus('done')}
               >
                 <i data-lucide="check" style={{ width: 14, height: 14 }}></i>
-                完成
+                Done
               </button>
             )}
             {t.status !== 'archived' && (
@@ -401,19 +538,19 @@ function TodoCard({
                 onClick={() => setStatus('archived')}
               >
                 <i data-lucide="archive" style={{ width: 14, height: 14 }}></i>
-                归档
+                Archive
               </button>
             )}
             <button className="btn btn-sm btn-danger" onClick={remove}>
               <i data-lucide="trash-2" style={{ width: 14, height: 14 }}></i>
-              删除
+              Delete
             </button>
           </>
         )}
         {deleted && (
           <div className="text-sm text-muted flex items-center gap-2">
             <i data-lucide="trash" style={{ width: 14, height: 14 }}></i>
-            已删除的任务
+            Deleted task
           </div>
         )}
       </div>

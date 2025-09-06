@@ -68,7 +68,7 @@ export default function App() {
                 }`}
               >
                 <i data-lucide="settings" style={{ width: 16, height: 16 }}></i>
-                <span>管理面板</span>
+                <span>Admin Panel</span>
               </Link>
 
               {/* Display/Dashboard link - active when on display route */}
@@ -79,7 +79,7 @@ export default function App() {
                 }`}
               >
                 <i data-lucide="monitor" style={{ width: 16, height: 16 }}></i>
-                <span>看板视图</span>
+                <span>Board View</span>
               </Link>
             </nav>
           </div>

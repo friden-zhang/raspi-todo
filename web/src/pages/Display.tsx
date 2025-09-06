@@ -50,13 +50,21 @@ export default function Display() {
       const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
 
       if (days < 0) {
-        return { text: `逾期 ${Math.abs(days)} 天`, isOverdue: true }
+        return {
+          text: `Overdue by ${Math.abs(days)} day${
+            Math.abs(days) > 1 ? 's' : ''
+          }`,
+          isOverdue: true,
+        }
       } else if (days === 0) {
-        return { text: '今天截止', isOverdue: false }
+        return { text: 'Due today', isOverdue: false }
       } else if (days === 1) {
-        return { text: '明天截止', isOverdue: false }
+        return { text: 'Due tomorrow', isOverdue: false }
       } else if (days <= 7) {
-        return { text: `${days} 天后截止`, isOverdue: false }
+        return {
+          text: `Due in ${days} day${days > 1 ? 's' : ''}`,
+          isOverdue: false,
+        }
       } else {
         return {
           text: date.toLocaleDateString('zh-CN', {
@@ -75,7 +83,7 @@ export default function Display() {
     switch (status) {
       case 'todo':
         return {
-          title: '待办事项',
+          title: 'Todo',
           icon: 'circle',
           color: 'warning',
           bgColor: 'var(--warning-50)',
@@ -83,7 +91,7 @@ export default function Display() {
         }
       case 'doing':
         return {
-          title: '进行中',
+          title: 'In Progress',
           icon: 'clock',
           color: 'primary',
           bgColor: 'var(--primary-50)',
@@ -91,7 +99,7 @@ export default function Display() {
         }
       case 'done':
         return {
-          title: '已完成',
+          title: 'Completed',
           icon: 'check-circle',
           color: 'success',
           bgColor: 'var(--success-50)',
@@ -129,20 +137,20 @@ export default function Display() {
       <div className="page-header">
         <h1 className="page-title">
           <i data-lucide="monitor" style={{ width: 28, height: 28 }}></i>
-          看板视图
+          Board View
         </h1>
         <div className="flex items-center gap-4 text-sm text-muted">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-            待办: {todosByStatus.todo.length}
+            Todo: {todosByStatus.todo.length}
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-blue-400"></div>
-            进行中: {todosByStatus.doing.length}
+            In Progress: {todosByStatus.doing.length}
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-green-400"></div>
-            已完成: {todosByStatus.done.length}
+            Completed: {todosByStatus.done.length}
           </div>
         </div>
       </div>
@@ -185,7 +193,7 @@ export default function Display() {
                       data-lucide="inbox"
                       style={{ width: 32, height: 32, margin: '0 auto 8px' }}
                     ></i>
-                    <p className="text-sm">暂无{config.title}</p>
+                    <p className="text-sm">No {config.title.toLowerCase()}</p>
                   </div>
                 ) : (
                   statusTodos.map(todo => {
@@ -245,9 +253,9 @@ export default function Display() {
       {todos.length === 0 && (
         <div className="empty-state">
           <i data-lucide="clipboard-list" className="empty-state-icon"></i>
-          <h3 className="empty-state-title">暂无待办事项</h3>
+          <h3 className="empty-state-title">No tasks yet</h3>
           <p className="empty-state-description">
-            前往管理面板创建您的第一个任务
+            Go to the admin panel to create your first task
           </p>
         </div>
       )}
