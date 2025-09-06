@@ -13,7 +13,7 @@
  * Think of this as the main window/frame in a C++ GUI application
  */
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 
 /**
@@ -30,48 +30,59 @@ export default function App() {
   // Similar to checking current state in a state machine
   const { pathname } = useLocation()
 
+  // Initialize Lucide icons when component mounts
+  useEffect(() => {
+    // @ts-ignore - Lucide is loaded via CDN
+    if (window.lucide) {
+      // @ts-ignore
+      window.lucide.createIcons()
+    }
+  })
+
   return (
     <div>
       {/* Header with navigation */}
       <header>
-        <div
-          className="container"
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          {/* Application title/brand */}
-          <div>
-            <strong>RasPi TODO</strong>
-          </div>
+        <div className="container">
+          <div className="header-content">
+            {/* Application title/brand */}
+            <div className="logo">
+              <div className="logo-icon">
+                <i
+                  data-lucide="check-square"
+                  style={{ width: 20, height: 20 }}
+                ></i>
+              </div>
+              <span>RasPi TODO</span>
+            </div>
 
-          {/* Navigation menu */}
-          <nav style={{ display: 'flex', gap: 12 }}>
-            {/* Admin link - bold when active (current route) */}
-            <Link
-              to="/admin"
-              style={{
-                fontWeight:
+            {/* Navigation menu */}
+            <nav>
+              {/* Admin link - active when on admin or root route */}
+              <Link
+                to="/admin"
+                className={`nav-link ${
                   pathname.startsWith('/admin') || pathname === '/'
-                    ? 'bold'
-                    : 'normal',
-              }}
-            >
-              Admin
-            </Link>
+                    ? 'active'
+                    : ''
+                }`}
+              >
+                <i data-lucide="settings" style={{ width: 16, height: 16 }}></i>
+                <span>管理面板</span>
+              </Link>
 
-            {/* Display/Dashboard link - bold when active */}
-            <Link
-              to="/display"
-              style={{
-                fontWeight: pathname.startsWith('/display') ? 'bold' : 'normal',
-              }}
-            >
-              Board
-            </Link>
-          </nav>
+              {/* Display/Dashboard link - active when on display route */}
+              <Link
+                to="/display"
+                className={`nav-link ${
+                  pathname.startsWith('/display') ? 'active' : ''
+                }`}
+              >
+                <i data-lucide="monitor" style={{ width: 16, height: 16 }}></i>
+                <span>看板视图</span>
+              </Link>
+            </nav>
+          </div>
         </div>
       </header>
 
