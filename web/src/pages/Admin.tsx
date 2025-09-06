@@ -8,8 +8,9 @@ import { Icon } from '../components/Icon'
 export default function Admin() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(false)
-  const [editingTodo, setEditingTodo] = useState<Todo | null>(null)
+  const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null)
   const [skipNextWsUpdate, setSkipNextWsUpdate] = useState(false)
+  const [isEditingInDetail, setIsEditingInDetail] = useState(false)
   const [editForm, setEditForm] = useState({
     title: '',
     note: '',
@@ -175,8 +176,14 @@ export default function Admin() {
     }
   }
 
-  function startEdit(todo: Todo) {
-    setEditingTodo(todo)
+  // Handle card click to show detail
+  const handleCardClick = (todo: Todo) => {
+    setSelectedTodo(todo)
+    setIsEditingInDetail(false)
+  }
+
+  // Handle edit button click to start editing directly
+  const handleEditClick = (todo: Todo) => {
     const dueDate = todo.due_at ? new Date(todo.due_at) : new Date()
     const dueDateStr = dueDate.toISOString().split('T')[0]
     const dueTimeStr = dueDate.toTimeString().slice(0, 5)
@@ -188,10 +195,14 @@ export default function Admin() {
       due_date: dueDateStr,
       due_time: dueTimeStr,
     })
+    setSelectedTodo(todo)
+    setIsEditingInDetail(true)
   }
 
-  function cancelEdit() {
-    setEditingTodo(null)
+  // Close detail modal
+  const closeDetailModal = () => {
+    setSelectedTodo(null)
+    setIsEditingInDetail(false)
     setEditForm({
       title: '',
       note: '',
@@ -201,60 +212,67 @@ export default function Admin() {
     })
   }
 
-  async function saveEdit(e: React.FormEvent) {
-    console.log('========== saveEdit function called ==========')
-    e.preventDefault()
-    console.log('preventDefault called')
+  // Start editing in detail modal
+  const startEditInDetail = () => {
+    if (!selectedTodo) return
 
-    if (!editingTodo) {
-      console.log('ERROR: No editing todo found')
-      return
-    }
+    const dueDate = selectedTodo.due_at
+      ? new Date(selectedTodo.due_at)
+      : new Date()
+    const dueDateStr = dueDate.toISOString().split('T')[0]
+    const dueTimeStr = dueDate.toTimeString().slice(0, 5)
+
+    setEditForm({
+      title: selectedTodo.title,
+      note: selectedTodo.note || '',
+      priority: selectedTodo.priority,
+      due_date: dueDateStr,
+      due_time: dueTimeStr,
+    })
+    setIsEditingInDetail(true)
+  }
+
+  // Cancel editing in detail modal
+  const cancelEditInDetail = () => {
+    setIsEditingInDetail(false)
+    setEditForm({
+      title: '',
+      note: '',
+      priority: 1,
+      due_date: '',
+      due_time: '',
+    })
+  }
+
+  // Save edit in detail modal
+  const saveEditInDetail = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!selectedTodo) return
 
     if (!editForm.title.trim()) {
-      console.log('ERROR: Title is empty')
       return
     }
-
-    console.log('Starting save process with data:', {
-      id: editingTodo.id,
-      title: editForm.title,
-      note: editForm.note,
-      priority: editForm.priority,
-      due_date: editForm.due_date,
-      due_time: editForm.due_time,
-    })
 
     setLoading(true)
     try {
-      // Combine date and time with proper timezone format
       const dueDateTime = `${editForm.due_date}T${editForm.due_time}:00Z`
 
-      console.log('Calling API with:', {
-        id: editingTodo.id,
-        title: editForm.title,
-        note: editForm.note.trim() || null,
-        priority: editForm.priority,
-        due_at: dueDateTime,
-      })
-
-      const result = await api.updateTodo(editingTodo.id, {
+      const result = await api.updateTodo(selectedTodo.id, {
         title: editForm.title,
         note: editForm.note.trim() || null,
         priority: editForm.priority as 0 | 1 | 2 | 3,
         due_at: dueDateTime,
       })
 
-      console.log('API Update result:', result)
-
-      // Skip next WebSocket update to prevent overriding our changes
       setSkipNextWsUpdate(true)
 
-      cancelEdit()
+      // Update the selected todo with the new data
+      setSelectedTodo({ ...selectedTodo, ...result })
+      setIsEditingInDetail(false)
 
-      // Delay the reload to allow WebSocket update to propagate
+      // Reload todos
       setTimeout(() => {
-        console.log('Reloading after save...')
         load()
       }, 300)
     } catch (error) {
@@ -437,7 +455,13 @@ export default function Admin() {
       ) : (
         <div className="grid">
           {grouped.active.map(t => (
-            <TodoCard key={t.id} t={t} refresh={load} onEdit={startEdit} />
+            <TodoCard
+              key={t.id}
+              t={t}
+              refresh={load}
+              onClick={handleCardClick}
+              onEdit={handleEditClick}
+            />
           ))}
         </div>
       )}
@@ -454,7 +478,13 @@ export default function Admin() {
           </div>
           <div className="grid">
             {grouped.archived.map(t => (
-              <TodoCard key={t.id} t={t} refresh={load} onEdit={startEdit} />
+              <TodoCard
+                key={t.id}
+                t={t}
+                refresh={load}
+                onClick={handleCardClick}
+                onEdit={handleEditClick}
+              />
             ))}
           </div>
         </>
@@ -478,103 +508,194 @@ export default function Admin() {
         </>
       )}
 
-      {/* Edit Todo Modal */}
-      {editingTodo && (
-        <div className="modal-overlay" onClick={cancelEdit}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
+      {/* Task Detail Modal */}
+      {selectedTodo && (
+        <div className="modal-overlay" onClick={closeDetailModal}>
+          <div
+            className="modal-content large"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="modal-header">
               <h3 className="flex items-center gap-2 font-semibold">
-                <Icon name="edit" size={20} />
-                Edit Task
+                <Icon name="file-text" size={20} />
+                Task Details
               </h3>
-              <button className="btn btn-sm btn-secondary" onClick={cancelEdit}>
-                <Icon name="x" size={16} />
-              </button>
+              <div className="flex gap-2">
+                {!isEditingInDetail ? (
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={startEditInDetail}
+                  >
+                    <Icon name="edit" size={16} />
+                    Edit
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    onClick={cancelEditInDetail}
+                  >
+                    <Icon name="x" size={16} />
+                    Cancel
+                  </button>
+                )}
+                <button
+                  className="btn btn-sm btn-secondary"
+                  onClick={closeDetailModal}
+                >
+                  <Icon name="x" size={16} />
+                </button>
+              </div>
             </div>
 
-            <form onSubmit={saveEdit}>
-              <div className="form-row mb-4">
-                <input
-                  className="input"
-                  placeholder="Task title (required)"
-                  value={editForm.title}
-                  onChange={e =>
-                    setEditForm({ ...editForm, title: e.target.value })
-                  }
-                  required
-                />
-              </div>
+            <div className="modal-body">
+              {!isEditingInDetail ? (
+                // View Mode
+                <div className="task-detail-view">
+                  <div className="task-meta mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span
+                        className={`status-badge status-${selectedTodo.status}`}
+                      >
+                        {selectedTodo.status}
+                      </span>
+                      <span
+                        className={`priority-badge priority-${selectedTodo.priority}`}
+                      >
+                        {selectedTodo.priority === 0 && 'Low Priority'}
+                        {selectedTodo.priority === 1 && 'Normal'}
+                        {selectedTodo.priority === 2 && 'Important'}
+                        {selectedTodo.priority === 3 && 'Urgent'}
+                      </span>
+                    </div>
+                    <div className="text-sm text-muted">
+                      Due:{' '}
+                      {selectedTodo.due_at
+                        ? new Date(selectedTodo.due_at).toLocaleString()
+                        : 'No due date'}
+                    </div>
+                  </div>
 
-              <div className="form-row mb-4">
-                <textarea
-                  className="textarea"
-                  placeholder="Notes (supports Markdown: **bold**, *italic*, `code`, etc.)"
-                  value={editForm.note}
-                  onChange={e =>
-                    setEditForm({ ...editForm, note: e.target.value })
-                  }
-                  rows={6}
-                />
-                <div className="text-sm text-muted mt-1">
-                  Markdown preview will be shown in the task card
+                  <div className="mb-4">
+                    <h4 className="text-lg font-semibold mb-2">
+                      {selectedTodo.title}
+                    </h4>
+                  </div>
+
+                  {selectedTodo.note && (
+                    <div className="mb-4">
+                      <h5 className="text-sm font-medium text-muted mb-2">
+                        Notes:
+                      </h5>
+                      <div
+                        className="markdown-content"
+                        dangerouslySetInnerHTML={{
+                          __html: marked(selectedTodo.note || ''),
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
-              </div>
+              ) : (
+                // Edit Mode
+                <form onSubmit={saveEditInDetail}>
+                  <div className="form-row mb-4">
+                    <label className="label">Title</label>
+                    <input
+                      className="input"
+                      placeholder="Task title (required)"
+                      value={editForm.title}
+                      onChange={e =>
+                        setEditForm({ ...editForm, title: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
 
-              <div className="form-row">
-                <select
-                  className="select"
-                  value={editForm.priority}
-                  onChange={e =>
-                    setEditForm({
-                      ...editForm,
-                      priority: parseInt(e.target.value),
-                    })
-                  }
-                >
-                  <option value={0}>Low Priority</option>
-                  <option value={1}>Normal Priority</option>
-                  <option value={2}>Important</option>
-                  <option value={3}>Urgent</option>
-                </select>
+                  <div className="form-row mb-4">
+                    <textarea
+                      className="textarea"
+                      placeholder="Notes (supports Markdown: **bold**, *italic*, `code`, etc.)"
+                      value={editForm.note}
+                      onChange={e =>
+                        setEditForm({ ...editForm, note: e.target.value })
+                      }
+                      rows={8}
+                    />
+                  </div>
 
-                <input
-                  type="date"
-                  className="input"
-                  value={editForm.due_date}
-                  onChange={e =>
-                    setEditForm({ ...editForm, due_date: e.target.value })
-                  }
-                  required
-                />
+                  <div className="form-row mb-4">
+                    <label className="label">Priority</label>
+                    <select
+                      className="select"
+                      value={editForm.priority}
+                      onChange={e =>
+                        setEditForm({
+                          ...editForm,
+                          priority: parseInt(e.target.value),
+                        })
+                      }
+                    >
+                      <option value={0}>Low Priority</option>
+                      <option value={1}>Normal Priority</option>
+                      <option value={2}>Important</option>
+                      <option value={3}>Urgent</option>
+                    </select>
+                  </div>
 
-                <input
-                  type="time"
-                  className="input"
-                  value={editForm.due_time}
-                  onChange={e =>
-                    setEditForm({ ...editForm, due_time: e.target.value })
-                  }
-                  required
-                />
-              </div>
+                  <div className="form-row mb-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="label">Due Date</label>
+                        <input
+                          type="date"
+                          className="input"
+                          value={editForm.due_date}
+                          onChange={e =>
+                            setEditForm({
+                              ...editForm,
+                              due_date: e.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="label">Due Time</label>
+                        <input
+                          type="time"
+                          className="input"
+                          value={editForm.due_time}
+                          onChange={e =>
+                            setEditForm({
+                              ...editForm,
+                              due_time: e.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={cancelEdit}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading || !editForm.title.trim()}
-                >
-                  {loading ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
+                  <div className="modal-footer">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={cancelEditInDetail}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={loading || !editForm.title.trim()}
+                    >
+                      {loading ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -645,11 +766,13 @@ function TodoCard({
   t,
   refresh,
   deleted,
+  onClick,
   onEdit,
 }: {
   t: Todo
   refresh: () => void
   deleted?: boolean
+  onClick?: (todo: Todo) => void
   onEdit?: (todo: Todo) => void
 }) {
   const statusInfo = getStatusInfo(t.status)
@@ -678,7 +801,10 @@ function TodoCard({
 
   return (
     <div
-      className={`card priority-${t.priority} ${deleted ? 'opacity-60' : ''}`}
+      className={`card priority-${t.priority} ${
+        deleted ? 'opacity-60' : ''
+      } cursor-pointer`}
+      onClick={() => onClick?.(t)}
     >
       <div className="priority-indicator"></div>
 
@@ -718,7 +844,7 @@ function TodoCard({
         <span>{fmtDue(t.due_at)}</span>
       </div>
 
-      <div className="card-footer">
+      <div className="card-footer" onClick={e => e.stopPropagation()}>
         {!deleted && (
           <>
             {t.status !== 'todo' && (

@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import { marked } from 'marked'
 import { api } from '../api'
 import type { Todo } from '../types'
 import { WSClient } from '../ws'
@@ -6,6 +7,17 @@ import { Icon } from '../components/Icon'
 
 export default function Display() {
   const [todos, setTodos] = useState<Todo[]>([])
+  const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [skipNextWsUpdate, setSkipNextWsUpdate] = useState(false)
+  const [isEditingInDetail, setIsEditingInDetail] = useState(false)
+  const [editForm, setEditForm] = useState({
+    title: '',
+    note: '',
+    priority: 1,
+    due_date: '',
+    due_time: '',
+  })
 
   async function load() {
     const data = await api.listTodos()
@@ -14,14 +26,24 @@ export default function Display() {
     )
   }
 
+  const handleWsUpdate = useCallback(() => {
+    if (skipNextWsUpdate) {
+      console.log('Skipping WebSocket update')
+      setSkipNextWsUpdate(false)
+      return
+    }
+    console.log('Processing WebSocket update')
+    load()
+  }, [skipNextWsUpdate])
+
   useEffect(() => {
     load()
   }, [])
 
   useEffect(() => {
-    const ws = new WSClient(() => load())
+    const ws = new WSClient(handleWsUpdate)
     return () => ws.stop()
-  }, [])
+  }, [handleWsUpdate])
 
   // Group todos by status
   const todosByStatus = useMemo(() => {
@@ -123,6 +145,125 @@ export default function Display() {
     }
   }
 
+  function handleCardClick(todo: Todo) {
+    setSelectedTodo(todo)
+    // Initialize edit form when opening detail modal
+    const dueDate = todo.due_at ? new Date(todo.due_at) : new Date()
+    const dueDateStr = dueDate.toISOString().split('T')[0]
+    const dueTimeStr = dueDate.toTimeString().slice(0, 5)
+
+    setEditForm({
+      title: todo.title,
+      note: todo.note || '',
+      priority: todo.priority,
+      due_date: dueDateStr,
+      due_time: dueTimeStr,
+    })
+    setIsEditingInDetail(false)
+  }
+
+  function startEditInDetail() {
+    setIsEditingInDetail(true)
+  }
+
+  function cancelEditInDetail() {
+    if (selectedTodo) {
+      // Reset form to original values
+      const dueDate = selectedTodo.due_at
+        ? new Date(selectedTodo.due_at)
+        : new Date()
+      const dueDateStr = dueDate.toISOString().split('T')[0]
+      const dueTimeStr = dueDate.toTimeString().slice(0, 5)
+
+      setEditForm({
+        title: selectedTodo.title,
+        note: selectedTodo.note || '',
+        priority: selectedTodo.priority,
+        due_date: dueDateStr,
+        due_time: dueTimeStr,
+      })
+    }
+    setIsEditingInDetail(false)
+  }
+
+  async function saveEditInDetail(e: React.FormEvent) {
+    console.log('========== saveEditInDetail function called ==========')
+    e.preventDefault()
+    console.log('preventDefault called')
+
+    if (!selectedTodo) {
+      console.log('ERROR: No selected todo found')
+      return
+    }
+
+    if (!editForm.title.trim()) {
+      console.log('ERROR: Title is empty')
+      return
+    }
+
+    console.log('Starting save process with data:', {
+      id: selectedTodo.id,
+      title: editForm.title,
+      note: editForm.note,
+      priority: editForm.priority,
+      due_date: editForm.due_date,
+      due_time: editForm.due_time,
+    })
+
+    setLoading(true)
+    try {
+      // Combine date and time with proper timezone format
+      const dueDateTime = `${editForm.due_date}T${editForm.due_time}:00Z`
+
+      console.log('Calling API with:', {
+        id: selectedTodo.id,
+        title: editForm.title,
+        note: editForm.note.trim() || null,
+        priority: editForm.priority,
+        due_at: dueDateTime,
+      })
+
+      const result = await api.updateTodo(selectedTodo.id, {
+        title: editForm.title,
+        note: editForm.note.trim() || null,
+        priority: editForm.priority as 0 | 1 | 2 | 3,
+        due_at: dueDateTime,
+      })
+
+      console.log('API Update result:', result)
+
+      // Update the selectedTodo with new data
+      setSelectedTodo(result)
+      setIsEditingInDetail(false)
+
+      // Skip next WebSocket update to prevent overriding our changes
+      setSkipNextWsUpdate(true)
+
+      // Delay the reload to allow WebSocket update to propagate
+      setTimeout(() => {
+        console.log('Reloading after save...')
+        load()
+      }, 300)
+    } catch (error) {
+      console.error('Failed to update todo:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function updateStatus(todo: Todo, newStatus: string) {
+    try {
+      await api.updateStatus(todo.id, newStatus)
+      // Skip next WebSocket update to prevent conflicts
+      setSkipNextWsUpdate(true)
+      setTimeout(() => {
+        load()
+      }, 300)
+    } catch (error) {
+      console.error('Failed to update status:', error)
+    }
+  }
+
   return (
     <div className="container">
       {/* Page Header */}
@@ -192,6 +333,8 @@ export default function Display() {
                       <div
                         key={todo.id}
                         className={`card priority-${todo.priority}`}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => handleCardClick(todo)}
                       >
                         <div className="priority-indicator"></div>
 
@@ -209,7 +352,15 @@ export default function Display() {
 
                         {todo.note && (
                           <div className="card-content">
-                            <p className="text-sm">{todo.note}</p>
+                            <div
+                              className="markdown-content text-sm"
+                              dangerouslySetInnerHTML={{
+                                __html: marked.parse(todo.note, {
+                                  breaks: true,
+                                  gfm: true,
+                                }),
+                              }}
+                            />
                           </div>
                         )}
 
@@ -247,6 +398,235 @@ export default function Display() {
           <p className="empty-state-description">
             Go to the admin panel to create your first task
           </p>
+        </div>
+      )}
+
+      {/* Task Detail Modal */}
+      {selectedTodo && (
+        <div className="modal-overlay" onClick={() => setSelectedTodo(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="flex items-center gap-2 font-semibold">
+                <Icon name="eye" size={20} />
+                Task Details
+              </h3>
+              <button
+                className="btn btn-sm btn-secondary"
+                onClick={() => setSelectedTodo(null)}
+              >
+                <Icon name="x" size={16} />
+              </button>
+            </div>
+
+            {isEditingInDetail ? (
+              /* Edit Mode */
+              <form onSubmit={saveEditInDetail}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Title:
+                    </label>
+                    <input
+                      className="input w-full"
+                      placeholder="Task title (required)"
+                      value={editForm.title}
+                      onChange={e =>
+                        setEditForm({ ...editForm, title: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Notes (Markdown):
+                    </label>
+                    <textarea
+                      className="textarea w-full"
+                      placeholder="**Bold text**, *italic*, `code`, lists, etc."
+                      value={editForm.note}
+                      onChange={e =>
+                        setEditForm({ ...editForm, note: e.target.value })
+                      }
+                      rows={8}
+                    />
+                    <div className="text-xs text-muted mt-1">
+                      Use Markdown syntax: **bold**, *italic*, `code`, - lists
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Priority:
+                      </label>
+                      <select
+                        className="select w-full"
+                        value={editForm.priority}
+                        onChange={e =>
+                          setEditForm({
+                            ...editForm,
+                            priority: parseInt(e.target.value),
+                          })
+                        }
+                      >
+                        <option value={0}>Low</option>
+                        <option value={1}>Normal</option>
+                        <option value={2}>Important</option>
+                        <option value={3}>Urgent</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Date:
+                      </label>
+                      <input
+                        type="date"
+                        className="input w-full"
+                        value={editForm.due_date}
+                        onChange={e =>
+                          setEditForm({ ...editForm, due_date: e.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Time:
+                      </label>
+                      <input
+                        type="time"
+                        className="input w-full"
+                        value={editForm.due_time}
+                        onChange={e =>
+                          setEditForm({ ...editForm, due_time: e.target.value })
+                        }
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={cancelEditInDetail}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={loading || !editForm.title.trim()}
+                  >
+                    {loading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* View Mode */
+              <>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-semibold text-lg mb-2">
+                      {selectedTodo.title}
+                    </h4>
+                    <div className="flex items-center gap-4 text-sm text-muted mb-4">
+                      <div className={`status-pill ${selectedTodo.status}`}>
+                        <Icon
+                          name={getStatusConfig(selectedTodo.status).icon}
+                          size={12}
+                        />
+                        {getStatusConfig(selectedTodo.status).title}
+                      </div>
+                      <div
+                        className={`priority-badge priority-${selectedTodo.priority}`}
+                      >
+                        <Icon
+                          name={getPriorityIcon(selectedTodo.priority)}
+                          size={12}
+                        />
+                        {
+                          ['Low', 'Normal', 'Important', 'Urgent'][
+                            selectedTodo.priority
+                          ]
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedTodo.note && (
+                    <div>
+                      <h5 className="font-medium mb-2">Notes:</h5>
+                      <div
+                        className="markdown-content p-3 bg-gray-50 rounded-lg"
+                        dangerouslySetInnerHTML={{
+                          __html: marked.parse(selectedTodo.note, {
+                            breaks: true,
+                            gfm: true,
+                          }),
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {selectedTodo.due_at && (
+                    <div>
+                      <h5 className="font-medium mb-2">Due Date:</h5>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Icon name="calendar" size={14} />
+                        <span>
+                          {new Date(selectedTodo.due_at).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-footer">
+                  <div className="flex gap-2">
+                    {selectedTodo.status !== 'todo' && (
+                      <button
+                        className="btn btn-sm btn-warning"
+                        onClick={() => updateStatus(selectedTodo, 'todo')}
+                      >
+                        <Icon name="rotate-ccw" size={14} />
+                        Todo
+                      </button>
+                    )}
+                    {selectedTodo.status !== 'doing' && (
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => updateStatus(selectedTodo, 'doing')}
+                      >
+                        <Icon name="play" size={14} />
+                        Start
+                      </button>
+                    )}
+                    {selectedTodo.status !== 'done' && (
+                      <button
+                        className="btn btn-sm btn-success"
+                        onClick={() => updateStatus(selectedTodo, 'done')}
+                      >
+                        <Icon name="check" size={14} />
+                        Complete
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    onClick={startEditInDetail}
+                  >
+                    <Icon name="edit" size={14} />
+                    Edit
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>
