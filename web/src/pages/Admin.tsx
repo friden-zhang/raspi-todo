@@ -111,7 +111,7 @@ export default function Admin() {
   useEffect(() => {
     const ws = new WSClient(() => load())
     return () => ws.stop()
-  }, [])
+  }, [statusFilter]) // Add statusFilter dependency to recreate WebSocket when filter changes
 
   async function createTodo(e: React.FormEvent) {
     e.preventDefault()
