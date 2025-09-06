@@ -11,6 +11,8 @@ export default function Display() {
   const [loading, setLoading] = useState(false)
   const [skipNextWsUpdate, setSkipNextWsUpdate] = useState(false)
   const [isEditingInDetail, setIsEditingInDetail] = useState(false)
+  const [draggedTodo, setDraggedTodo] = useState<Todo | null>(null)
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({
     title: '',
     note: '',
@@ -264,6 +266,63 @@ export default function Display() {
     }
   }
 
+  // Drag and Drop handlers
+  const handleDragStart = (e: React.DragEvent, todo: Todo) => {
+    setDraggedTodo(todo)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', todo.id)
+
+    // Add some visual feedback
+    const target = e.target as HTMLElement
+    target.style.opacity = '0.5'
+  }
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    // Reset visual feedback
+    const target = e.target as HTMLElement
+    target.style.opacity = '1'
+
+    // Clean up drag state
+    setDraggedTodo(null)
+    setDragOverColumn(null)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleDragEnter = (e: React.DragEvent, status: string) => {
+    e.preventDefault()
+    setDragOverColumn(status)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only clear drag over when leaving the drop zone entirely
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const x = e.clientX
+    const y = e.clientY
+
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setDragOverColumn(null)
+    }
+  }
+
+  const handleDrop = async (e: React.DragEvent, newStatus: string) => {
+    e.preventDefault()
+    setDragOverColumn(null)
+
+    if (!draggedTodo || draggedTodo.status === newStatus) {
+      return
+    }
+
+    try {
+      await updateStatus(draggedTodo, newStatus)
+    } catch (error) {
+      console.error('Failed to update status via drag and drop:', error)
+    }
+  }
+
   return (
     <div className="container">
       {/* Page Header */}
@@ -295,19 +354,43 @@ export default function Display() {
           const statusTodos = todosByStatus[status]
 
           return (
-            <div key={status} className="flex flex-col">
+            <div
+              key={status}
+              className="flex flex-col"
+              onDragOver={handleDragOver}
+              onDragEnter={e => handleDragEnter(e, status)}
+              onDragLeave={handleDragLeave}
+              onDrop={e => handleDrop(e, status)}
+            >
               {/* Column Header */}
               <div
-                className="p-4 rounded-lg mb-4 border-2"
+                className={`p-4 rounded-lg mb-4 border-2 transition-all duration-200 ${
+                  dragOverColumn === status
+                    ? 'border-primary-500 bg-primary-100 scale-105'
+                    : ''
+                }`}
                 style={{
-                  backgroundColor: config.bgColor,
-                  borderColor: config.borderColor,
+                  backgroundColor:
+                    dragOverColumn === status
+                      ? 'var(--primary-100)'
+                      : config.bgColor,
+                  borderColor:
+                    dragOverColumn === status
+                      ? 'var(--primary-500)'
+                      : config.borderColor,
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Icon name={config.icon} size={18} />
                     <h2 className="font-semibold">{config.title}</h2>
+                    {dragOverColumn === status && (
+                      <Icon
+                        name="arrow-down"
+                        size={16}
+                        className="text-primary-600"
+                      />
+                    )}
                   </div>
                   <span className="bg-white px-2 py-1 rounded-full text-sm font-medium">
                     {statusTodos.length}
@@ -316,7 +399,13 @@ export default function Display() {
               </div>
 
               {/* Column Cards */}
-              <div className="flex flex-col gap-4">
+              <div
+                className={`flex flex-col gap-4 min-h-32 p-2 rounded-lg transition-all duration-200 ${
+                  dragOverColumn === status
+                    ? 'bg-primary-50 border-2 border-dashed border-primary-300'
+                    : ''
+                }`}
+              >
                 {statusTodos.length === 0 ? (
                   <div className="p-6 text-center text-muted border-2 border-dashed border-gray-200 rounded-lg">
                     <Icon
@@ -332,9 +421,23 @@ export default function Display() {
                     return (
                       <div
                         key={todo.id}
-                        className={`card priority-${todo.priority}`}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => handleCardClick(todo)}
+                        className={`card priority-${
+                          todo.priority
+                        } transition-all duration-200 ${
+                          draggedTodo?.id === todo.id
+                            ? 'opacity-50 scale-95'
+                            : 'hover:scale-105'
+                        }`}
+                        style={{ cursor: 'grab' }}
+                        draggable={true}
+                        onDragStart={e => handleDragStart(e, todo)}
+                        onDragEnd={handleDragEnd}
+                        onClick={e => {
+                          // Prevent click when dragging
+                          if (!draggedTodo) {
+                            handleCardClick(todo)
+                          }
+                        }}
                       >
                         <div className="priority-indicator"></div>
 

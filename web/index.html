@@ -879,6 +879,106 @@
         color: var(--gray-600);
         font-style: italic;
       }
+
+      /* Drag and Drop Styles */
+      .card[draggable='true'] {
+        cursor: grab;
+        user-select: none;
+      }
+
+      .card[draggable='true']:active {
+        cursor: grabbing;
+      }
+
+      .card.dragging {
+        opacity: 0.5;
+        transform: scale(0.95);
+        box-shadow: var(--shadow-xl);
+        z-index: 1000;
+      }
+
+      .drop-zone {
+        min-height: 200px;
+        border: 2px dashed transparent;
+        border-radius: var(--radius-lg);
+        transition: all 0.3s ease;
+        position: relative;
+      }
+
+      .drop-zone.drag-over {
+        border-color: var(--primary-500);
+        background-color: var(--primary-50);
+        transform: scale(1.02);
+      }
+
+      .drop-zone.drag-over::before {
+        content: 'Drop here to change status';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--primary-600);
+        color: white;
+        padding: var(--space-2) var(--space-4);
+        border-radius: var(--radius-md);
+        font-size: 0.875rem;
+        font-weight: 500;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      /* Additional utility classes */
+      .cursor-grab {
+        cursor: grab;
+      }
+
+      .cursor-grabbing {
+        cursor: grabbing;
+      }
+
+      .transition-all {
+        transition: all 0.2s ease;
+      }
+
+      .duration-200 {
+        transition-duration: 200ms;
+      }
+
+      .scale-95 {
+        transform: scale(0.95);
+      }
+
+      .scale-105 {
+        transform: scale(1.05);
+      }
+
+      .hover\:scale-105:hover {
+        transform: scale(1.05);
+      }
+
+      .text-primary-600 {
+        color: var(--primary-600);
+      }
+
+      .bg-primary-50 {
+        background-color: var(--primary-50);
+      }
+
+      .bg-primary-100 {
+        background-color: var(--primary-100);
+      }
+
+      .border-primary-300 {
+        border-color: var(--primary-300);
+      }
+
+      .border-primary-500 {
+        border-color: var(--primary-500);
+      }
+
+      .min-h-32 {
+        min-height: 8rem;
+      }
     </style>
   </head>
   <body>
