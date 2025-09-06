@@ -30,6 +30,7 @@ RUN npm ci
 
 # Copy source files and build
 COPY web/src ./src/
+COPY web/public ./public/
 COPY web/index.html web/vite.config.ts web/tsconfig.json ./
 RUN npm run build
 
