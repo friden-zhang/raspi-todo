@@ -71,6 +71,38 @@ export default function MyDay() {
     }
   }
 
+  // Helper function to get priority color
+  function getPriorityColor(priority: number) {
+    switch (priority) {
+      case 0:
+        return '#6B7280' // Gray - Low
+      case 1:
+        return '#3B82F6' // Blue - Normal
+      case 2:
+        return '#F59E0B' // Amber - High
+      case 3:
+        return '#EF4444' // Red - Urgent
+      default:
+        return '#6B7280'
+    }
+  }
+
+  // Helper function to get priority label
+  function getPriorityLabel(priority: number) {
+    switch (priority) {
+      case 0:
+        return 'Low'
+      case 1:
+        return 'Normal'
+      case 2:
+        return 'High'
+      case 3:
+        return 'Urgent'
+      default:
+        return 'Normal'
+    }
+  }
+
   // Handle todo update from modal
   const handleTodoUpdate = (updatedTodo: Todo) => {
     setTodos(prev => prev.map(t => (t.id === updatedTodo.id ? updatedTodo : t)))
@@ -205,9 +237,13 @@ export default function MyDay() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <div className={`priority-badge priority-${todo.priority}`}>
-              <Icon name={getPriorityIcon(todo.priority)} size={14} />
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div
+              className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium text-white whitespace-nowrap"
+              style={{ backgroundColor: getPriorityColor(todo.priority) }}
+            >
+              <Icon name={getPriorityIcon(todo.priority)} size={12} />
+              <span>{getPriorityLabel(todo.priority)}</span>
             </div>
           </div>
         </div>

@@ -13,6 +13,7 @@ import { api } from '../api'
 import type { Todo, Category } from '../types'
 import { WSClient } from '../ws'
 import { Icon } from '../components/Icon'
+import { TodoDetailModal } from '../components/TodoDetailModal'
 
 interface CategoryWithTodos {
   category: Category | null // null for uncategorized todos
@@ -34,6 +35,7 @@ export default function Categories() {
     description: '',
   })
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+  const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null)
 
   // Predefined colors for categories
   const colorOptions = [
@@ -305,6 +307,28 @@ export default function Categories() {
     })
   }
 
+  // Handle todo update from detail modal
+  const handleTodoUpdate = async (updatedTodo: Todo) => {
+    try {
+      await api.updateTodo(updatedTodo.id, updatedTodo)
+      setSelectedTodo(null)
+      loadData()
+    } catch (error) {
+      console.error('Failed to update todo:', error)
+    }
+  }
+
+  // Handle todo delete from detail modal
+  const handleTodoDelete = async (todoId: string) => {
+    try {
+      await api.deleteTodo(todoId)
+      setSelectedTodo(null)
+      loadData()
+    } catch (error) {
+      console.error('Failed to delete todo:', error)
+    }
+  }
+
   if (loading) {
     return (
       <div className="container">
@@ -332,13 +356,16 @@ export default function Categories() {
 
         {/* Category Form Modal */}
         {showCategoryForm && (
-          <div className="modal-overlay">
-            <div className="modal">
-              <div className="modal-header">
-                <h2>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-800">
                   {editingCategory ? 'Edit Category' : 'Create New Category'}
                 </h2>
-                <button className="close-btn" onClick={cancelEdit}>
+                <button
+                  className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                  onClick={cancelEdit}
+                >
                   <Icon name="x" size={20} />
                 </button>
               </div>
@@ -346,9 +373,15 @@ export default function Categories() {
                 onSubmit={
                   editingCategory ? handleUpdateCategory : handleCreateCategory
                 }
+                className="p-6 space-y-4"
               >
-                <div className="form-group">
-                  <label htmlFor="category-name">Name</label>
+                <div className="space-y-2">
+                  <label
+                    htmlFor="category-name"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Name
+                  </label>
                   <input
                     id="category-name"
                     type="text"
@@ -360,18 +393,26 @@ export default function Categories() {
                       }))
                     }
                     placeholder="Category name"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
                 </div>
-                <div className="form-group">
-                  <label htmlFor="category-color">Color</label>
-                  <div className="color-picker">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="category-color"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Color
+                  </label>
+                  <div className="flex flex-wrap gap-2">
                     {colorOptions.map(color => (
                       <button
                         key={color}
                         type="button"
-                        className={`color-option ${
-                          categoryForm.color === color ? 'selected' : ''
+                        className={`w-8 h-8 rounded-full border-2 transition-all ${
+                          categoryForm.color === color
+                            ? 'border-gray-800 scale-110'
+                            : 'border-gray-300 hover:border-gray-500'
                         }`}
                         style={{ backgroundColor: color }}
                         onClick={() =>
@@ -381,8 +422,11 @@ export default function Categories() {
                     ))}
                   </div>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="category-description">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="category-description"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Description (Optional)
                   </label>
                   <textarea
@@ -396,17 +440,21 @@ export default function Categories() {
                     }
                     placeholder="Category description"
                     rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   />
                 </div>
-                <div className="form-actions">
+                <div className="flex gap-3 pt-4">
                   <button
                     type="button"
-                    className="btn btn-secondary"
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
                     onClick={cancelEdit}
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="btn btn-primary">
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
                     {editingCategory ? 'Update' : 'Create'}
                   </button>
                 </div>
@@ -515,7 +563,10 @@ export default function Categories() {
                               key={todo.id}
                               className={`todo-item status-${todo.status}`}
                             >
-                              <div className="todo-content">
+                              <div
+                                className="todo-content cursor-pointer hover:bg-gray-50 transition-colors"
+                                onClick={() => setSelectedTodo(todo)}
+                              >
                                 <div className="todo-title">{todo.title}</div>
                                 {todo.note && (
                                   <div className="todo-note">{todo.note}</div>
@@ -576,6 +627,16 @@ export default function Categories() {
           </div>
         )}
       </div>
+
+      {/* Todo Detail Modal */}
+      <TodoDetailModal
+        todo={selectedTodo}
+        categories={categories}
+        isOpen={!!selectedTodo}
+        onClose={() => setSelectedTodo(null)}
+        onUpdate={handleTodoUpdate}
+        onDelete={handleTodoDelete}
+      />
     </div>
   )
 }
