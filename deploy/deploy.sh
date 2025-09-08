@@ -243,7 +243,7 @@ deploy_docker_local() {
 
     # Build Docker image
     print_status "INFO" "Building Docker image..."
-    if ! docker build -t "$DOCKER_IMAGE_NAME" .; then
+    if ! docker build --network=host -t "$DOCKER_IMAGE_NAME" .; then
         print_status "ERROR" "Failed to build Docker image"
         exit 1
     fi
@@ -602,12 +602,10 @@ main() {
             health_check
             ;;
         "docker")
-            check_permissions
             deploy_docker_flow
             health_check
             ;;
         "docker-local")
-            check_permissions
             deploy_docker_local_flow
             health_check
             ;;

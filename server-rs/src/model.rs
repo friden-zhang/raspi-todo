@@ -35,11 +35,27 @@ pub struct Todo {
     pub priority: i64,                 // Priority level: 0 (low) to 3 (high)
     pub due_at: Option<DateTime<Utc>>, // Optional due date with timezone
     pub tags: Option<String>,          // Optional tags (MVP implementation)
+    pub category_id: Option<String>,   // Optional category ID (foreign key to categories table)
     pub sort_order: i64,               // Manual sorting order
     pub created_at: DateTime<Utc>,     // Creation timestamp
     pub updated_at: DateTime<Utc>,     // Last modification timestamp
     pub deleted: i64,                  // Soft delete flag: 0=active, 1=deleted
                                        // Note: Using i64 instead of bool for SQLite compatibility
+}
+
+/**
+ * Category entity - represents a todo category
+ */
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Category {
+    pub id: String,                  // UUIDv4 string - Primary key
+    pub name: String,                // Category name - Required field
+    pub color: Option<String>,       // Optional color for UI display (hex color)
+    pub description: Option<String>, // Optional description
+    pub sort_order: i64,             // Manual sorting order
+    pub created_at: DateTime<Utc>,   // Creation timestamp
+    pub updated_at: DateTime<Utc>,   // Last modification timestamp
+    pub deleted: i64,                // Soft delete flag: 0=active, 1=deleted
 }
 
 /**
@@ -59,6 +75,17 @@ pub struct TodoCreate {
     pub priority: Option<i64>,         // Optional: defaults to 0 if not specified
     pub due_at: Option<DateTime<Utc>>, // Optional: when it should be completed
     pub tags: Option<String>,          // Optional: categorization
+    pub category_id: Option<String>,   // Optional: category assignment
+}
+
+/**
+ * Data Transfer Object for creating new categories
+ */
+#[derive(Debug, Clone, Deserialize)]
+pub struct CategoryCreate {
+    pub name: String,                // Required: category name
+    pub color: Option<String>,       // Optional: color for UI display
+    pub description: Option<String>, // Optional: category description
 }
 
 /**
@@ -77,8 +104,21 @@ pub struct TodoUpdate {
     pub priority: Option<i64>,         // Change priority level
     pub due_at: Option<DateTime<Utc>>, // Update or clear due date
     pub tags: Option<String>,          // Update or clear tags
+    pub category_id: Option<String>,   // Update or clear category
     pub sort_order: Option<i64>,       // Change sort position
     pub deleted: Option<i64>,          // Soft delete/undelete
+}
+
+/**
+ * Data Transfer Object for updating existing categories
+ */
+#[derive(Debug, Clone, Deserialize)]
+pub struct CategoryUpdate {
+    pub name: Option<String>,        // Update category name
+    pub color: Option<String>,       // Update or clear color
+    pub description: Option<String>, // Update or clear description
+    pub sort_order: Option<i64>,     // Change sort position
+    pub deleted: Option<i64>,        // Soft delete/undelete
 }
 
 /**
@@ -137,10 +177,33 @@ impl Todo {
             priority: c.priority.unwrap_or(1), // Default priority = 1 (medium)
             due_at: c.due_at,                  // Optional due date
             tags: c.tags,                      // Optional tags
+            category_id: c.category_id,        // Optional category
             sort_order: 0,                     // Default sort order
             created_at: now,                   // Set creation time
             updated_at: now,                   // Set update time (same as creation)
             deleted: 0,                        // Default to not deleted
+        }
+    }
+}
+
+/**
+ * Implementation block for Category struct
+ */
+impl Category {
+    /**
+     * Factory method to create a new Category from CategoryCreate request
+     */
+    pub fn new_from_create(c: CategoryCreate) -> Self {
+        let now = Utc::now();
+        Self {
+            id: Uuid::new_v4().to_string(),
+            name: c.name,
+            color: c.color,
+            description: c.description,
+            sort_order: 0,
+            created_at: now,
+            updated_at: now,
+            deleted: 0,
         }
     }
 }

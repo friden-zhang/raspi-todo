@@ -30,8 +30,23 @@ export type Todo = {
   priority: 0 | 1 | 2 | 3 // Priority level (literal types)
   due_at?: string | null // Optional due date (ISO string)
   tags?: string | null // Optional tags
+  category_id?: string | null // Optional category ID
   sort_order: number // Manual sorting order
   created_at: string // Creation timestamp (ISO string)
   updated_at: string // Last update timestamp (ISO string)
   deleted: boolean | number // Soft delete flag (backend sends 0/1, frontend uses boolean)
+}
+
+/**
+ * Category type definition
+ */
+export type Category = {
+  id: string // Unique identifier (UUID)
+  name: string // Category name (required)
+  color?: string | null // Optional color for UI display
+  description?: string | null // Optional description
+  sort_order: number // Manual sorting order
+  created_at: string // Creation timestamp (ISO string)
+  updated_at: string // Last update timestamp (ISO string)
+  deleted: boolean | number // Soft delete flag
 }

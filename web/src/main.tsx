@@ -5,6 +5,7 @@ import App from './App'
 import Admin from './pages/Admin'
 import Display from './pages/Display'
 import MyDay from './pages/MyDay'
+import Categories from './pages/Categories'
 
 const router = createBrowserRouter([
   {
@@ -15,6 +16,7 @@ const router = createBrowserRouter([
       { path: 'admin', element: <Admin /> },
       { path: 'display', element: <Display /> },
       { path: 'my-day', element: <MyDay /> },
+      { path: 'categories', element: <Categories /> },
     ],
   },
 ])

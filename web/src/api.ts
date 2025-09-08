@@ -1,4 +1,4 @@
-import type { Todo } from './types'
+import type { Todo, Category } from './types'
 
 const API_BASE = import.meta.env.VITE_API_BASE || window.location.origin
 
@@ -31,6 +31,23 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(items),
     }),
+  // Category endpoints
+  listCategories: (): Promise<Category[]> =>
+    http<Category[]>('/api/categories'),
+  createCategory: (data: Partial<Category>): Promise<Category> =>
+    http<Category>('/api/categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getCategory: (id: string): Promise<Category> =>
+    http<Category>(`/api/categories/${id}`),
+  updateCategory: (id: string, data: Partial<Category>): Promise<Category> =>
+    http<Category>(`/api/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteCategory: (id: string): Promise<void> =>
+    http<void>(`/api/categories/${id}`, { method: 'DELETE' }),
 }
 
 export { API_BASE }

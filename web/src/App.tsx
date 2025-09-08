@@ -71,6 +71,17 @@ export default function App() {
                 <span>My Day</span>
               </Link>
 
+              {/* Categories link - active when on categories route */}
+              <Link
+                to="/categories"
+                className={`nav-link ${
+                  pathname.startsWith('/categories') ? 'active' : ''
+                }`}
+              >
+                <Icon name="folder" size={16} />
+                <span>Categories</span>
+              </Link>
+
               {/* Display/Dashboard link - active when on display route */}
               <Link
                 to="/display"

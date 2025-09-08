@@ -1,22 +1,27 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { marked } from 'marked'
 import { api } from '../api'
-import type { Todo } from '../types'
+import type { Todo, Category } from '../types'
 import { WSClient } from '../ws'
 import { Icon } from '../components/Icon'
 
 export default function Admin() {
   const [todos, setTodos] = useState<Todo[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null)
   const [skipNextWsUpdate, setSkipNextWsUpdate] = useState(false)
   const [isEditingInDetail, setIsEditingInDetail] = useState(false)
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
+    new Set(['archived', 'deleted'])
+  )
   const [editForm, setEditForm] = useState({
     title: '',
     note: '',
     priority: 1,
     due_date: '',
     due_time: '',
+    category_id: '',
   })
 
   // Generate default due date (today's date)
@@ -34,6 +39,7 @@ export default function Admin() {
     priority: 1,
     due_date: getDefaultDueDate(), // Default to today
     due_time: '18:00', // Default to 6 PM
+    category_id: '',
   })
   const [statusFilter, setStatusFilter] = useState<string>('')
 
@@ -108,8 +114,12 @@ export default function Admin() {
   async function load() {
     setLoading(true)
     try {
-      const data = await api.listTodos(statusFilter || undefined)
-      setTodos(data)
+      const [todosData, categoriesData] = await Promise.all([
+        api.listTodos(statusFilter || undefined),
+        api.listCategories(),
+      ])
+      setTodos(todosData)
+      setCategories(categoriesData.filter(c => !c.deleted))
     } finally {
       setLoading(false)
     }
@@ -152,6 +162,7 @@ export default function Admin() {
         note: form.note || undefined,
         priority: (Number(form.priority) || 1) as 0 | 1 | 2 | 3,
         due_at: dueDateTime,
+        category_id: form.category_id || undefined,
       })
 
       // Reset form first
@@ -161,6 +172,7 @@ export default function Admin() {
         priority: 1,
         due_date: getDefaultDueDate(),
         due_time: '18:00',
+        category_id: '',
       })
 
       // Let WebSocket handle the update instead of immediate reload
@@ -194,6 +206,7 @@ export default function Admin() {
       priority: todo.priority,
       due_date: dueDateStr,
       due_time: dueTimeStr,
+      category_id: todo.category_id || '',
     })
     setSelectedTodo(todo)
     setIsEditingInDetail(true)
@@ -209,6 +222,7 @@ export default function Admin() {
       priority: 1,
       due_date: '',
       due_time: '',
+      category_id: '',
     })
   }
 
@@ -228,6 +242,7 @@ export default function Admin() {
       priority: selectedTodo.priority,
       due_date: dueDateStr,
       due_time: dueTimeStr,
+      category_id: selectedTodo.category_id || '',
     })
     setIsEditingInDetail(true)
   }
@@ -241,6 +256,20 @@ export default function Admin() {
       priority: 1,
       due_date: '',
       due_time: '',
+      category_id: '',
+    })
+  }
+
+  // Toggle section collapse
+  const toggleSectionCollapse = (sectionId: string) => {
+    setCollapsedSections(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId)
+      } else {
+        newSet.add(sectionId)
+      }
+      return newSet
     })
   }
 
@@ -263,6 +292,7 @@ export default function Admin() {
         note: editForm.note.trim() || null,
         priority: editForm.priority as 0 | 1 | 2 | 3,
         due_at: dueDateTime,
+        category_id: editForm.category_id || null,
       })
 
       setSkipNextWsUpdate(true)
@@ -293,6 +323,43 @@ export default function Admin() {
       deleted: todos.filter(t => Number(t.deleted) !== 0),
     }),
     [todos]
+  )
+
+  // Section Header Component
+  const SectionHeader = ({
+    title,
+    count,
+    icon,
+    sectionId,
+    isCollapsed,
+  }: {
+    title: string
+    count: number
+    icon: string
+    sectionId: string
+    isCollapsed: boolean
+  }) => (
+    <div
+      className="section-header cursor-pointer hover:bg-blue-50 hover:border-blue-200 rounded-lg p-3 -m-1 transition-all duration-200 border border-transparent"
+      onClick={() => toggleSectionCollapse(sectionId)}
+    >
+      <h2 className="section-title flex items-center gap-2">
+        <Icon
+          name="chevron-down"
+          size={20}
+          className={`text-gray-600 transition-transform duration-200 ${
+            isCollapsed ? '-rotate-90' : 'rotate-0'
+          }`}
+        />
+        <Icon name={icon} size={20} className="text-blue-600" />
+        <span className="text-gray-800">{title}</span>
+      </h2>
+      <div className="flex items-center gap-2">
+        <span className="section-count bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
+          {count}
+        </span>
+      </div>
+    </div>
   )
 
   return (
@@ -354,6 +421,24 @@ export default function Admin() {
                 <option value={1}>Priority 1 (Normal)</option>
                 <option value={2}>Priority 2 (Important)</option>
                 <option value={3}>Priority 3 (Urgent)</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="text-sm font-medium text-muted">Category</label>
+              <select
+                className="input"
+                value={form.category_id}
+                onChange={e =>
+                  setForm({ ...form, category_id: e.target.value })
+                }
+              >
+                <option value="">No category</option>
+                {categories.map(category => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -436,48 +521,32 @@ export default function Admin() {
       </div>
 
       {/* Active Todos Section */}
-      <div className="section-header">
-        <h2 className="section-title">
-          <Icon name="list-todo" size={20} />
-          Active Tasks
-        </h2>
-        <span className="section-count">{grouped.active.length}</span>
-      </div>
+      <SectionHeader
+        title="Active Tasks"
+        count={grouped.active.length}
+        icon="list-todo"
+        sectionId="active"
+        isCollapsed={collapsedSections.has('active')}
+      />
 
-      {grouped.active.length === 0 ? (
-        <div className="empty-state">
-          <Icon name="inbox" className="empty-state-icon" size={48} />
-          <h3 className="empty-state-title">No Active Tasks</h3>
-          <p className="empty-state-description">
-            Create your first task to start managing your todos
-          </p>
-        </div>
-      ) : (
-        <div className="grid">
-          {grouped.active.map(t => (
-            <TodoCard
-              key={t.id}
-              t={t}
-              refresh={load}
-              onClick={handleCardClick}
-              onEdit={handleEditClick}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Archived Todos Section */}
-      {grouped.archived.length > 0 && (
-        <>
-          <div className="section-header">
-            <h2 className="section-title">
-              <Icon name="archive" size={20} />
-              Archived Tasks
-            </h2>
-            <span className="section-count">{grouped.archived.length}</span>
+      <div
+        className={`transition-all duration-300 ease-in-out overflow-hidden ${
+          collapsedSections.has('active')
+            ? 'max-h-0 opacity-0'
+            : 'max-h-[2000px] opacity-100'
+        }`}
+      >
+        {grouped.active.length === 0 ? (
+          <div className="empty-state">
+            <Icon name="inbox" className="empty-state-icon" size={48} />
+            <h3 className="empty-state-title">No Active Tasks</h3>
+            <p className="empty-state-description">
+              Create your first task to start managing your todos
+            </p>
           </div>
+        ) : (
           <div className="grid">
-            {grouped.archived.map(t => (
+            {grouped.active.map(t => (
               <TodoCard
                 key={t.id}
                 t={t}
@@ -487,23 +556,63 @@ export default function Admin() {
               />
             ))}
           </div>
+        )}
+      </div>
+
+      {/* Archived Todos Section */}
+      {grouped.archived.length > 0 && (
+        <>
+          <SectionHeader
+            title="Archived Tasks"
+            count={grouped.archived.length}
+            icon="archive"
+            sectionId="archived"
+            isCollapsed={collapsedSections.has('archived')}
+          />
+          <div
+            className={`transition-all duration-300 ease-in-out overflow-hidden ${
+              collapsedSections.has('archived')
+                ? 'max-h-0 opacity-0'
+                : 'max-h-[2000px] opacity-100'
+            }`}
+          >
+            <div className="grid">
+              {grouped.archived.map(t => (
+                <TodoCard
+                  key={t.id}
+                  t={t}
+                  refresh={load}
+                  onClick={handleCardClick}
+                  onEdit={handleEditClick}
+                />
+              ))}
+            </div>
+          </div>
         </>
       )}
 
       {/* Deleted Todos Section */}
       {grouped.deleted.length > 0 && (
         <>
-          <div className="section-header">
-            <h2 className="section-title">
-              <Icon name="trash-2" size={20} />
-              Deleted Tasks
-            </h2>
-            <span className="section-count">{grouped.deleted.length}</span>
-          </div>
-          <div className="grid">
-            {grouped.deleted.map(t => (
-              <TodoCard key={t.id} t={t} refresh={load} deleted />
-            ))}
+          <SectionHeader
+            title="Deleted Tasks"
+            count={grouped.deleted.length}
+            icon="trash-2"
+            sectionId="deleted"
+            isCollapsed={collapsedSections.has('deleted')}
+          />
+          <div
+            className={`transition-all duration-300 ease-in-out overflow-hidden ${
+              collapsedSections.has('deleted')
+                ? 'max-h-0 opacity-0'
+                : 'max-h-[2000px] opacity-100'
+            }`}
+          >
+            <div className="grid">
+              {grouped.deleted.map(t => (
+                <TodoCard key={t.id} t={t} refresh={load} deleted />
+              ))}
+            </div>
           </div>
         </>
       )}
@@ -639,6 +748,27 @@ export default function Admin() {
                       <option value={1}>Normal Priority</option>
                       <option value={2}>Important</option>
                       <option value={3}>Urgent</option>
+                    </select>
+                  </div>
+
+                  <div className="form-row mb-4">
+                    <label className="label">Category</label>
+                    <select
+                      className="select"
+                      value={editForm.category_id}
+                      onChange={e =>
+                        setEditForm({
+                          ...editForm,
+                          category_id: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="">No category</option>
+                      {categories.map(category => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
 

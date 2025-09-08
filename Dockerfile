@@ -1,6 +1,6 @@
 # Multi-stage build for optimized production image
 # Stage 1: Build Rust backend
-FROM rustlang/rust:nightly-slim as rust-builder
+FROM rustlang/rust:nightly-slim AS rust-builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -19,7 +19,7 @@ WORKDIR /app/server-rs
 RUN cargo build --release
 
 # Stage 2: Build React frontend
-FROM node:18-alpine as web-builder
+FROM node:18-alpine AS web-builder
 
 WORKDIR /app
 

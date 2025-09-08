@@ -11,7 +11,9 @@ use std::sync::Arc;
 use crate::{
     db::SqlitePool,
     error::{ApiError, ApiResult},
-    model::{Health, ReorderItem, Todo, TodoCreate, TodoUpdate},
+    model::{
+        Category, CategoryCreate, CategoryUpdate, Health, ReorderItem, Todo, TodoCreate, TodoUpdate,
+    },
     ws::WsHub,
 };
 
@@ -34,6 +36,16 @@ pub fn api_router() -> Router<AppState> {
             axum::routing::patch(update_status),
         )
         .route("/api/todos/reorder", post(reorder))
+        .route(
+            "/api/categories",
+            get(list_categories).post(create_category),
+        )
+        .route(
+            "/api/categories/{id}",
+            get(get_category)
+                .put(update_category)
+                .delete(delete_category),
+        )
 }
 
 async fn health() -> Json<Health> {
@@ -85,8 +97,8 @@ async fn create_todo(
 ) -> ApiResult<Json<Todo>> {
     let todo = Todo::new_from_create(body);
     sqlx::query(r#"
-        INSERT INTO todos (id,title,note,status,priority,due_at,tags,sort_order,created_at,updated_at,deleted)
-        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)
+        INSERT INTO todos (id,title,note,status,priority,due_at,tags,category_id,sort_order,created_at,updated_at,deleted)
+        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)
     "#)
         .bind(&todo.id)
         .bind(&todo.title)
@@ -95,6 +107,7 @@ async fn create_todo(
         .bind(todo.priority)
         .bind(todo.due_at)
         .bind(&todo.tags)
+        .bind(&todo.category_id)
         .bind(todo.sort_order)
         .bind(todo.created_at)
         .bind(todo.updated_at)
@@ -147,6 +160,9 @@ async fn update_todo(
     if let Some(v) = body.tags {
         t.tags = Some(v);
     }
+    if let Some(v) = body.category_id {
+        t.category_id = Some(v);
+    }
     if let Some(v) = body.sort_order {
         t.sort_order = v;
     }
@@ -159,7 +175,7 @@ async fn update_todo(
         r#"
         UPDATE todos SET
         title=?2, note=?3, status=?4, priority=?5, due_at=?6, tags=?7,
-        sort_order=?8, updated_at=?9, deleted=?10
+        category_id=?8, sort_order=?9, updated_at=?10, deleted=?11
         WHERE id=?1
     "#,
     )
@@ -170,6 +186,7 @@ async fn update_todo(
     .bind(t.priority)
     .bind(t.due_at)
     .bind(&t.tags)
+    .bind(&t.category_id)
     .bind(t.sort_order)
     .bind(t.updated_at)
     .bind(t.deleted)
@@ -246,6 +263,143 @@ async fn reorder(
     tx.commit().await?;
 
     let event = json!({"type":"todos.reordered","data": items});
+    let _ = st.hub.tx.send(event.to_string());
+    Ok(Json(json!({"ok": true})))
+}
+
+// Category endpoints
+
+async fn list_categories(State(st): State<AppState>) -> ApiResult<Json<Vec<Category>>> {
+    let rows = sqlx::query_as::<_, Category>(
+        "SELECT * FROM categories WHERE deleted = 0 ORDER BY sort_order ASC, name ASC",
+    )
+    .fetch_all(&st.pool)
+    .await?;
+    Ok(Json(rows))
+}
+
+async fn create_category(
+    State(st): State<AppState>,
+    Json(body): Json<CategoryCreate>,
+) -> ApiResult<Json<Category>> {
+    let category = Category::new_from_create(body);
+    sqlx::query(
+        r#"
+        INSERT INTO categories (id,name,color,description,sort_order,created_at,updated_at,deleted)
+        VALUES (?1,?2,?3,?4,?5,?6,?7,?8)
+    "#,
+    )
+    .bind(&category.id)
+    .bind(&category.name)
+    .bind(&category.color)
+    .bind(&category.description)
+    .bind(category.sort_order)
+    .bind(category.created_at)
+    .bind(category.updated_at)
+    .bind(category.deleted)
+    .execute(&st.pool)
+    .await?;
+
+    let event = json!({"type":"category.created","data": &category});
+    let _ = st.hub.tx.send(event.to_string());
+    Ok(Json(category))
+}
+
+async fn get_category(
+    State(st): State<AppState>,
+    Path(id): Path<String>,
+) -> ApiResult<Json<Category>> {
+    let row = sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE id=?1")
+        .bind(&id)
+        .fetch_optional(&st.pool)
+        .await?;
+    match row {
+        Some(c) => Ok(Json(c)),
+        None => Err(ApiError::NotFound),
+    }
+}
+
+async fn update_category(
+    State(st): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<CategoryUpdate>,
+) -> ApiResult<Json<Category>> {
+    let mut c: Category = sqlx::query_as("SELECT * FROM categories WHERE id=?1")
+        .bind(&id)
+        .fetch_optional(&st.pool)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    if let Some(v) = body.name {
+        c.name = v;
+    }
+    if let Some(v) = body.color {
+        c.color = Some(v);
+    }
+    if let Some(v) = body.description {
+        c.description = Some(v);
+    }
+    if let Some(v) = body.sort_order {
+        c.sort_order = v;
+    }
+    if let Some(v) = body.deleted {
+        c.deleted = v;
+    }
+    c.updated_at = Utc::now();
+
+    sqlx::query(
+        r#"
+        UPDATE categories SET
+        name=?2, color=?3, description=?4, sort_order=?5, updated_at=?6, deleted=?7
+        WHERE id=?1
+    "#,
+    )
+    .bind(&c.id)
+    .bind(&c.name)
+    .bind(&c.color)
+    .bind(&c.description)
+    .bind(c.sort_order)
+    .bind(c.updated_at)
+    .bind(c.deleted)
+    .execute(&st.pool)
+    .await?;
+
+    let event = json!({"type":"category.updated","data": &c});
+    let _ = st.hub.tx.send(event.to_string());
+    Ok(Json(c))
+}
+
+async fn delete_category(
+    State(st): State<AppState>,
+    Path(id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM categories WHERE id=?1")
+        .bind(&id)
+        .fetch_optional(&st.pool)
+        .await?;
+    if exists.is_none() {
+        return Err(ApiError::NotFound);
+    }
+
+    // Check if there are todos using this category
+    let todo_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM todos WHERE category_id=?1 AND deleted=0")
+            .bind(&id)
+            .fetch_one(&st.pool)
+            .await?;
+
+    if todo_count > 0 {
+        return Err(ApiError::BadRequest(
+            "Cannot delete category that has todos assigned to it".into(),
+        ));
+    }
+
+    sqlx::query("UPDATE categories SET deleted=1, updated_at=CURRENT_TIMESTAMP WHERE id=?1")
+        .bind(&id)
+        .execute(&st.pool)
+        .await?;
+
+    let event = json!({"type":"category.deleted","data": {"id": id}});
     let _ = st.hub.tx.send(event.to_string());
     Ok(Json(json!({"ok": true})))
 }
